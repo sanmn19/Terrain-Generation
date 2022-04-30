@@ -151,18 +151,19 @@
     <Image Include="AmagoT.bmp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_dx10.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_dx11.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_dx9.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_glfw.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_opengl2.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_opengl3.cpp" />
-    <ClCompile Include="..\imgui-master\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="..\imgui-master\imgui.cpp" />
-    <ClCompile Include="..\imgui-master\imgui_demo.cpp" />
-    <ClCompile Include="..\imgui-master\imgui_draw.cpp" />
-    <ClCompile Include="..\imgui-master\imgui_tables.cpp" />
-    <ClCompile Include="..\imgui-master\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_dx10.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_dx9.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_opengl2.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="..\..\imgui-master\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="..\..\imgui-master\imgui.cpp" />
+    <ClCompile Include="..\..\imgui-master\imgui_demo.cpp" />
+    <ClCompile Include="..\..\imgui-master\imgui_draw.cpp" />
+    <ClCompile Include="..\..\imgui-master\imgui_tables.cpp" />
+    <ClCompile Include="..\..\imgui-master\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\imgui-master\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="DebugCallback.cpp" />
     <ClCompile Include="InitShader.cpp" />
     <ClCompile Include="LoadMesh.cpp" />
@@ -172,22 +173,24 @@
     <ClCompile Include="VideoMux.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_dx10.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_dx11.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_dx9.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_glfw.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_metal.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_opengl2.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_opengl3.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_opengl3_loader.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_osx.h" />
-    <ClInclude Include="..\imgui-master\backends\imgui_impl_win32.h" />
-    <ClInclude Include="..\imgui-master\imconfig.h" />
-    <ClInclude Include="..\imgui-master\imgui.h" />
-    <ClInclude Include="..\imgui-master\imgui_internal.h" />
-    <ClInclude Include="..\imgui-master\imstb_rectpack.h" />
-    <ClInclude Include="..\imgui-master\imstb_textedit.h" />
-    <ClInclude Include="..\imgui-master\imstb_truetype.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_dx10.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_dx9.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_glfw.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_metal.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_opengl2.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_opengl3.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_osx.h" />
+    <ClInclude Include="..\..\imgui-master\backends\imgui_impl_win32.h" />
+    <ClInclude Include="..\..\imgui-master\imconfig.h" />
+    <ClInclude Include="..\..\imgui-master\imgui.h" />
+    <ClInclude Include="..\..\imgui-master\imgui_internal.h" />
+    <ClInclude Include="..\..\imgui-master\imstb_rectpack.h" />
+    <ClInclude Include="..\..\imgui-master\imstb_textedit.h" />
+    <ClInclude Include="..\..\imgui-master\imstb_truetype.h" />
+    <ClInclude Include="..\..\imgui-master\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="..\..\imgui-master\misc\single_file\imgui_single_file.h" />
     <ClInclude Include="DebugCallback.h" />
     <ClInclude Include="InitShader.h" />
     <ClInclude Include="LoadMesh.h" />
@@ -195,8 +198,8 @@
     <ClInclude Include="VideoMux.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\imgui-master\backends\imgui_impl_metal.mm" />
-    <None Include="..\imgui-master\backends\imgui_impl_osx.mm" />
+    <None Include="..\..\imgui-master\backends\imgui_impl_metal.mm" />
+    <None Include="..\..\imgui-master\backends\imgui_impl_osx.mm" />
     <None Include="template_fs.glsl" />
     <None Include="template_vs.glsl" />
   </ItemGroup>
