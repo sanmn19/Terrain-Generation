@@ -182,23 +182,18 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 
 	unsigned int idx = 0;
 
-	for (int i = 0; i < rowSize - 1; i = i + 1) {
-		for (int j = 0; j < columnSize; j = j + 1) {
-			indexArray.push_back(idx);
-			indexArray.push_back(idx + columnSize);
-			if (j == (columnSize - 1)) {
-				indexArray.push_back(RESTART_PRIMITIVE_CODE);
-			}
-			idx++;
-		}
-		//idx++;
-	}
-
 	for (int i = 0; i < rowSize; i = i + 1) {
 		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
 		FIRGBAF* columnVectorNext = (i == rowSize - 1)? nullptr: (FIRGBAF*)FreeImage_GetScanLine(img, i + 1);
 		for (int j = 0; j < columnSize; j = j + 1) {
 			//std::cout << "i j " << i << " " << j << std::endl;
+			if (i != rowSize - 1) {
+				indexArray.push_back(idx);
+				indexArray.push_back(idx + columnSize);
+				if (j == (columnSize - 1)) {
+					indexArray.push_back(RESTART_PRIMITIVE_CODE);
+				}
+			}
 			float pixelValue00 = columnVector[j].red;
 
 			float columnSizeFloat = (float)columnSize;
@@ -210,13 +205,13 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 			glm::vec3 pixel00VertexPosition = glm::vec3(normalizedI, pixelValue00, normalizedJ);
 			AddVertex(&vertices, pixel00VertexPosition);
 
-			if (j != columnSize - 1 && columnVectorNext != nullptr) {
+			if (columnVectorNext != nullptr) {
 
 				float pixelValue01 = columnVector[j + 1].red;
 
 				float pixelValue10 = columnVectorNext[j].red;
 
-				float pixelValue11 = columnVectorNext[j + 1].red;
+				//float pixelValue11 = columnVectorNext[j + 1].red;
 				/*std::cout << "Pixel Value is  00 " << pixelValue00 << " 01 " << pixelValue01 << " 10 "
 					<< pixelValue10 << " 11 "
 					<< pixelValue11 << " "
@@ -228,9 +223,9 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 
 				glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
 				glm::vec3 pixel10VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue10, normalizedJ);
-				glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
+				//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
 
-				glm::vec3 p = glm::normalize(pixel11VertexPosition - pixel00VertexPosition);
+				glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
 				glm::vec3 q = glm::normalize(pixel10VertexPosition - pixel00VertexPosition);
 
 				glm::vec3 normal = glm::normalize(glm::cross(p, q));
@@ -241,17 +236,24 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 				//AddVertex(&vertices, pixel10VertexPosition);
 				AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
 				AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal, i + 1, j + 1, rowSize, columnSize, weights);
+				AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
 				//AddVertex(&normals, normal);
 				//AddVertex(&normals, normal);
 				//AddVertex(&normals, normal);
 
-				glm::vec3 q2 = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
+				if (j != 0) {
+					float normalizedJMinusOne = (j - 1) / columnSizeFloat;
 
-				glm::vec3 normal2 = glm::normalize(-glm::cross(p, q2));
-				AppendNormal(normals, normal2, i, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal2, i, j + 1, rowSize, columnSize, weights);
-				AppendNormal(normals, normal2, i + 1, j + 1, rowSize, columnSize, weights);
+					float pixelValue1Minus1 = columnVectorNext[j - 1].red;
+					glm::vec3 pixel1Minus1VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue1Minus1, normalizedJMinusOne);
+
+					glm::vec3 q2 = glm::normalize(pixel1Minus1VertexPosition - pixel00VertexPosition);
+
+					glm::vec3 normal2 = glm::normalize(glm::cross(q, q2));
+					AppendNormal(normals, normal2, i, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal2, i + 1, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal2, i + 1, j - 1, rowSize, columnSize, weights);
+				}
 			}
 
 
@@ -263,6 +265,8 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 			//AddVertex(&normals, normal2);
 			//AddVertex(&normals, normal2);
 			//AddVertex(&normals, normal2);
+
+			idx++;
 		}
 	}
 
