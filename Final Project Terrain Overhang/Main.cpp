@@ -37,17 +37,17 @@ static const std::string texture_name = "HeightMap.jpeg";
 
 int drawMode = 0;
 int indexCount = 256 * 255 * 2 + 255;
-float angle = 0.0f;
-float scale = 1.0f;
+float angle = -2.841f;
+float scale[3] = { 1, 1, 1 };
 float aspect = 1.0f;
 float lightDir[3];
 
 float x = 0;
-float y = 5;
+float y = 3.697;
 float z = 5;
 
 float c1 = 0;
-float c2 = 0;
+float c2 = 0.84;
 float c3 = 0;
 
 bool recording = false;
@@ -95,11 +95,12 @@ void draw_gui(GLFWwindow* window)
       }
    }
 
+   ImGui::SliderFloat3("Scale", &scale[0], 0.01f, 100.0f);
    ImGui::SliderFloat3("Light Dir", &lightDir[0], -1, 1);
    ImGui::SliderInt("Draw Mode", &drawMode, 0, 3);
    ImGui::InputInt("Indices", &indexCount, 1, 200000);
    ImGui::SliderFloat("View angle", &angle, -glm::pi<float>(), +glm::pi<float>());
-   ImGui::SliderFloat("Scale", &scale, 0.01f, +100.0f);
+   //ImGui::SliderFloat("Scale", &scale, 0.01f, +100.0f);
 
    ImGui::SliderFloat("X", &x, -100, 100);
    ImGui::SliderFloat("Y", &y, -100, 100);
@@ -126,7 +127,7 @@ void display(GLFWwindow* window)
    //Clear the screen to the color previously specified in the glClearColor(...) call.
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    
-   glm::mat4 M = glm::rotate(angle, glm::vec3(0.0f, 1.0f, 0.0f))*glm::scale(glm::vec3(scale));
+   glm::mat4 M = glm::rotate(angle, glm::vec3(0.0f, 1.0f, 0.0f))*glm::scale(glm::vec3(scale[0], scale[1], scale[2]));
    glm::mat4 V = glm::lookAt(glm::vec3(x, y, z), glm::vec3(c1, c2, c3), glm::vec3(0.0f, 1.0f, 0.0f));
    glm::mat4 P = glm::perspective(glm::pi<float>()/4.0f, aspect, 0.1f, 1000.0f);
 
@@ -142,7 +143,7 @@ void display(GLFWwindow* window)
    glm::mat4 PVM = P*V*M;
    int PVM_loc = glGetUniformLocation(shader_program, "PVM");
    glUniformMatrix4fv(PVM_loc, 1, false, glm::value_ptr(PVM));
-   
+   terrain.setAngle(angle);
    terrain.setDrawMode(drawMode);
    terrain.setIndexCountToRender(indexCount);
    terrain.render(V, P, shader_program, lightDir);
@@ -150,7 +151,7 @@ void display(GLFWwindow* window)
    //glBindVertexArray(mesh_data.mVao);
    //glDrawElements(GL_TRIANGLES, mesh_data.mSubmesh[0].mNumIndices, GL_UNSIGNED_INT, 0);
    //For meshes with multiple submeshes use mesh_data.DrawMesh(); 
-   terrain.setScale(glm::vec3(scale, scale / 10, scale));
+   terrain.setScale(glm::vec3(scale[0], scale[1], scale[2]));
 
    draw_gui(window);
 
@@ -293,7 +294,7 @@ int main(int argc, char **argv)
    glfwMakeContextCurrent(window);
 
    initOpenGL();
-   terrain = Terrain(glm::vec3(0.0f, 0.0f, 0.0f), texture_name, glm::vec3(scale, scale/8, scale));
+   terrain = Terrain(glm::vec3(0.0f, 0.0f, 0.0f), texture_name, glm::vec3(scale[0], scale[1], scale[2]));
    terrain.generateTerrain();
    
    //Init ImGui

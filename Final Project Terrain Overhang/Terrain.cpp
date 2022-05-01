@@ -17,6 +17,7 @@ class Terrain {
 	glm::vec3 position;
 
 	glm::vec3 scale;
+	float angleY;
 
 	std::string filePath;
 
@@ -43,7 +44,7 @@ class Terrain {
 	std::vector<glm::vec3> generateIntermediateBezierPoints(int axis, glm::vec3& initialPoint, glm::vec3 & finalPoint, glm::vec2 controlPoint1, glm::vec2 controlPoint2, int pointsToBeGenerated);
 	float getBezierValue(float initialPoint, float controlPoint1, float controlPoint2, float finalPoint, float t);
 	int getIndexForRowColumn(const int& i, const int& j, const int& rowSize, const int& columnSize);
-	glm::vec2 convertFloatTo2Parts(float value1);
+	void convertFloatTo4Parts(float value1, glm::vec2& controlPointNormalized1, glm::vec2& controlPointNormalized2, float heightDifference);
 	void addXAxisVertices(const int& j, const int& columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition,
 		glm::vec3 pixel01VertexPosition, std::vector<GLfloat>& vertices);
 
@@ -60,6 +61,7 @@ public:
 
 	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3]);
 
+	void setAngle(float angle);
 	void setScale(glm::vec3 scale);
 	void setDrawMode(int drawMode);
 
@@ -73,6 +75,10 @@ public:
 
 	void SaveOBJ(std::vector<char> filename);
 };
+
+inline void Terrain::setAngle(float angle) {
+	this->angleY = angle;
+}
 
 inline void Terrain::setDrawMode(int drawMode) {
 	this->drawMode = drawMode;
@@ -100,24 +106,6 @@ inline Terrain::Terrain(glm::vec3 position, const std::string & filePath, glm::v
 
 inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3])
 {	
-	
-	//const int pos_loc = 0;
-	//const int normal_loc = 1;
-
-	//glBindAttribLocation(programID, pos_loc, "pos_attrib");
-	//glBindAttribLocation(programID, tex_coord_loc, "tex_coord_attrib");
-	//glBindAttribLocation(programID, normal_loc, "normal_attrib");
-
-	/*glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertexCount, vertexBufferData, GL_STATIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);*/
-
-	/*glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * vertexCount, vertexNormalData, GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);*/
-
 	modelMatrix = getModelMatrix();
 
 	glm::mat4 mvp = projection * view * modelMatrix;
@@ -169,7 +157,7 @@ inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint program
 
 inline glm::mat4 Terrain::getModelMatrix() {
 	modelMatrix = glm::mat4(1.0f);
-	//modelMatrix = glm::rotate(modelMatrix, 1.570796f, glm::vec3(1, 0, 0));
+	modelMatrix = glm::rotate(modelMatrix, angleY, glm::vec3(0, 1, 0));
 	modelMatrix = glm::translate(modelMatrix, position);
 	modelMatrix = glm::scale(modelMatrix, scale);
 	return modelMatrix;
@@ -184,7 +172,7 @@ inline std::vector<glm::vec3> Terrain::generateIntermediateBezierPoints(int axis
 	std::vector<glm::vec3> generatedPoints;
 	generatedPoints.reserve(pointsToBeGenerated);
 
-	float increment = (1 / float(pointsToBeGenerated + 1)); //Including initial and finalPoints but based on no. of divisions 5 points = 4 divisions
+	float increment = (0.6f / float(pointsToBeGenerated)); //Including initial and finalPoints but based on no. of divisions 5 points = 4 divisions
 
 	if (axis == 0) //XAxis
 	{
@@ -196,7 +184,7 @@ inline std::vector<glm::vec3> Terrain::generateIntermediateBezierPoints(int axis
 		float controlPoint2y = (initialPoint.y * (1 - controlPointNormalized2.y)) + (finalPoint.y * controlPointNormalized2.y);
 		glm::vec2 controlPoint2 = glm::vec2(controlPoint2x, controlPoint2y);
 
-		for (float t = increment; t <= (1 - increment); t += increment) {
+		for (float t = 0.4f; t < 1; t += increment) {
 			float x = getBezierValue(initialPoint.x, controlPoint1.x, controlPoint2.x, finalPoint.x, t);
 			float y = getBezierValue(initialPoint.y, controlPoint1.y, controlPoint2.y, finalPoint.y, t);
 
@@ -213,7 +201,7 @@ inline std::vector<glm::vec3> Terrain::generateIntermediateBezierPoints(int axis
 		float controlPoint2y = (initialPoint.y * (1 - controlPointNormalized2.y)) + (finalPoint.y * controlPointNormalized2.y);
 		glm::vec2 controlPoint2 = glm::vec2(controlPoint2z, controlPoint2y);
 
-		for (float t = increment; t <= (1 - increment); t += increment) {
+		for (float t = 0.4f; t < 1 ; t += increment) {
 			float z = getBezierValue(initialPoint.z, controlPoint1.x, controlPoint2.x, finalPoint.z, t);
 			float y = getBezierValue(initialPoint.y, controlPoint1.y, controlPoint2.y, finalPoint.y, t);
 
@@ -224,8 +212,15 @@ inline std::vector<glm::vec3> Terrain::generateIntermediateBezierPoints(int axis
 	return generatedPoints;
 }
 
-inline glm::vec2 Terrain::convertFloatTo2Parts(float value1) {
-	return glm::vec2(0);
+inline void Terrain::convertFloatTo4Parts(float value1, glm::vec2 & controlPointNormalized1, glm::vec2 & controlPointNormalized2, float heightDifference) {
+	if (heightDifference < -0.5) {
+		controlPointNormalized1 = glm::vec2(1, 0);
+		controlPointNormalized2 = glm::vec2(1, 0);
+	}
+	else {
+		controlPointNormalized1 = glm::vec2(0, 0);
+		controlPointNormalized2 = glm::vec2(0, 0);
+	}
 }
 
 inline int Terrain::getIndexForRowColumn(const int & i, const int & j, const int & rowSize, const int & columnSize) {
@@ -234,8 +229,9 @@ inline int Terrain::getIndexForRowColumn(const int & i, const int & j, const int
 
 inline void Terrain::addXAxisVertices(const int & j, const int & columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition, 
 										glm::vec3 pixel01VertexPosition, std::vector<GLfloat> & vertices) {
-	glm::vec2 controlPointNormalized1 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].green);
-	glm::vec2 controlPointNormalized2 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].blue);
+	glm::vec2 controlPointNormalized1;
+	glm::vec2 controlPointNormalized2;
+	convertFloatTo4Parts(columnVector[j].blue, controlPointNormalized1, controlPointNormalized2, pixel00VertexPosition.y - pixel01VertexPosition.y);
 
 	std::vector<glm::vec3> xAxisBezierPoints = generateIntermediateBezierPoints(1,
 		pixel00VertexPosition, pixel01VertexPosition,
@@ -323,8 +319,10 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 				}*/
 
 				//Temporarily making 2 control points as 1 point TODO
-				glm::vec2 controlPointDownNormalized1 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].green);
-				glm::vec2 controlPointDownNormalized2 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].blue);
+				glm::vec2 controlPointDownNormalized1;
+				glm::vec2 controlPointDownNormalized2;
+
+				convertFloatTo4Parts(columnVector[j].green, controlPointDownNormalized1, controlPointDownNormalized2, pixel00VertexPosition.y - pixel10VertexPosition.y);
 
 				std::vector<glm::vec3> zAxisBezierPoints = generateIntermediateBezierPoints(0,
 					pixel00VertexPosition, pixel10VertexPosition,
