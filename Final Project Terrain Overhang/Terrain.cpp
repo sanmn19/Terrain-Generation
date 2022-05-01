@@ -36,6 +36,7 @@ class Terrain {
 
 	void AddVertex(std::vector <GLfloat>* a, const glm::vec3 v);
 	void AppendNormal(std::vector <GLfloat>& a, const glm::vec3 n, const int& i, const int& j, const int& rows, const int& cols, std::vector <int>& weights);
+	void AppendNormal(std::vector <GLfloat>& a, const glm::vec3 n, const int& index, std::vector <int>& weights);
 
 	GLuint index_buffer;
 
@@ -296,14 +297,17 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 					
 					//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
 
+					/*
 					glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
 
 					glm::vec3 normal = glm::normalize(glm::cross(p, q));
 					AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
 					AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
 					AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
+					*/
 				}
 
+				/*
 				if (j != 0) {
 					float normalizedJMinusOne = (j - 1) / columnSizeFloat;
 
@@ -316,7 +320,7 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 					AppendNormal(normals, normal2, i, j, rowSize, columnSize, weights);
 					AppendNormal(normals, normal2, i + 1, j, rowSize, columnSize, weights);
 					AppendNormal(normals, normal2, i + 1, j - 1, rowSize, columnSize, weights);
-				}
+				}*/
 
 				//Temporarily making 2 control points as 1 point TODO
 				glm::vec2 controlPointDownNormalized1 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].green);
@@ -332,7 +336,6 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 				if (j != (columnSize - 1)) {
 					addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
 				}
-
 
 				//Index Addition part
 
@@ -382,6 +385,32 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 					addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
 				}
 			}
+		}
+	}
+
+	float normalInvert = 1;
+
+	for (int n = 0; n < indexArray.size() - 2; n += 1) {
+		if (indexArray[n + 2] != RESTART_PRIMITIVE_CODE) {
+			int index1 = indexArray[n] * 3;
+			int index2 = indexArray[n + 1] * 3;
+			int index3 = indexArray[n + 2] * 3;
+			glm::vec3 vertex1 = glm::vec3(vertices[index1], vertices[index1 + 1], vertices[index1 + 2]);
+			glm::vec3 vertex2 = glm::vec3(vertices[index2], vertices[index2 + 1], vertices[index2 + 2]);
+			glm::vec3 vertex3 = glm::vec3(vertices[index3], vertices[index3 + 1], vertices[index3 + 2]);
+			
+			glm::vec3 q = glm::normalize(vertex2 - vertex1);
+			glm::vec3 p = glm::normalize(vertex3 - vertex1);
+			glm::vec3 normal = glm::normalize(normalInvert * glm::cross(p, q));
+
+			AppendNormal(normals, normal, index1, weights);
+			AppendNormal(normals, normal, index2, weights);
+			AppendNormal(normals, normal, index3, weights);
+			
+			normalInvert = -normalInvert;
+		}
+		else {
+			n += 2;
 		}
 	}
 
@@ -450,13 +479,31 @@ inline void Terrain::generateTerrain() {
 
 inline void Terrain::AppendNormal(std::vector <GLfloat> & a, const glm::vec3 n, const int & i, const int & j, const int & rows, const int & cols, std::vector <int> & weights) {
 	int weightsIndex = (i * cols) + j;
-	int index = (i * cols * 3) + (j * 3);
+	//int index = (i * cols * 3) + (j * 3);
+	int index = getIndexForRowColumn(i, j, rows, cols) * 3;
 	glm::vec3 currNormal = glm::vec3(a[index], a[index + 1], a[index + 2]);
 	currNormal = glm::normalize(currNormal + n);
 	//float xAvg = ((a[index] * weights[weightsIndex]) + n.x) / (weights[weightsIndex] + 1);
 	//float yAvg = ((a[index + 1] * weights[weightsIndex]) + n.y) / (weights[weightsIndex] + 1);
 	//float zAvg = ((a[index + 2] * weights[weightsIndex]) + n.z) / (weights[weightsIndex] + 1);
 	weights[weightsIndex] += 1;
+	a[index] = currNormal.x;
+	a[index + 1] = currNormal.y;
+	a[index + 2] = currNormal.z;
+	//a->push_back(n.x);
+	//a->push_back(n.y);
+	//a->push_back(n.z);
+}
+
+inline void Terrain::AppendNormal(std::vector <GLfloat>& a, const glm::vec3 n, const int& index, std::vector <int>& weights) {
+	//int index = (i * cols * 3) + (j * 3);
+	//int index = getIndexForRowColumn(i, j, rows, cols) * 3;
+	glm::vec3 currNormal = glm::vec3(a[index], a[index + 1], a[index + 2]);
+	currNormal = glm::normalize(currNormal + n);
+	//float xAvg = ((a[index] * weights[weightsIndex]) + n.x) / (weights[weightsIndex] + 1);
+	//float yAvg = ((a[index + 1] * weights[weightsIndex]) + n.y) / (weights[weightsIndex] + 1);
+	//float zAvg = ((a[index + 2] * weights[weightsIndex]) + n.z) / (weights[weightsIndex] + 1);
+	//weights[weightsIndex] += 1;
 	a[index] = currNormal.x;
 	a[index + 1] = currNormal.y;
 	a[index + 2] = currNormal.z;
