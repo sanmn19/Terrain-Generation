@@ -39,6 +39,13 @@ class Terrain {
 
 	GLuint index_buffer;
 
+	std::vector<glm::vec3> generateIntermediateBezierPoints(int axis, glm::vec3& initialPoint, glm::vec3 & finalPoint, glm::vec2 controlPoint1, glm::vec2 controlPoint2, int pointsToBeGenerated);
+	float getBezierValue(float initialPoint, float controlPoint1, float controlPoint2, float finalPoint, float t);
+	int getIndexForRowColumn(const int& i, const int& j, const int& rowSize, const int& columnSize);
+	glm::vec2 convertFloatTo2Parts(float value1);
+	void addXAxisVertices(const int& j, const int& columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition,
+		glm::vec3 pixel01VertexPosition, std::vector<GLfloat>& vertices);
+
 public:
 
 	//unsigned int vertexCount;
@@ -167,12 +174,83 @@ inline glm::mat4 Terrain::getModelMatrix() {
 	return modelMatrix;
 }
 
+inline float Terrain::getBezierValue(float initialPoint, float controlPoint1, float controlPoint2, float finalPoint, float t) {
+	return (pow((1 - t), 3) * initialPoint) + (3 * t * pow(1 - t, 2) * controlPoint1)
+		+ (3 * pow(t, 2) * (1 - t) * controlPoint2) + (pow(t, 3) * finalPoint);
+}
+
+inline std::vector<glm::vec3> Terrain::generateIntermediateBezierPoints(int axis, glm::vec3& initialPoint, glm::vec3& finalPoint, glm::vec2 controlPointNormalized1, glm::vec2 controlPointNormalized2, int pointsToBeGenerated) {
+	std::vector<glm::vec3> generatedPoints;
+	generatedPoints.reserve(pointsToBeGenerated);
+
+	float increment = (1 / float(pointsToBeGenerated + 1)); //Including initial and finalPoints but based on no. of divisions 5 points = 4 divisions
+
+	if (axis == 0) //XAxis
+	{
+		float controlPoint1x = (initialPoint.x * (1 - controlPointNormalized1.x)) + (finalPoint.x * controlPointNormalized1.x);
+		float controlPoint1y = (initialPoint.y * (1 - controlPointNormalized1.y)) + (finalPoint.y * controlPointNormalized1.y);
+		glm::vec2 controlPoint1 = glm::vec2(controlPoint1x, controlPoint1y);
+
+		float controlPoint2x = (initialPoint.x * (1 - controlPointNormalized2.x)) + (finalPoint.x * controlPointNormalized2.x);
+		float controlPoint2y = (initialPoint.y * (1 - controlPointNormalized2.y)) + (finalPoint.y * controlPointNormalized2.y);
+		glm::vec2 controlPoint2 = glm::vec2(controlPoint2x, controlPoint2y);
+
+		for (float t = increment; t <= (1 - increment); t += increment) {
+			float x = getBezierValue(initialPoint.x, controlPoint1.x, controlPoint2.x, finalPoint.x, t);
+			float y = getBezierValue(initialPoint.y, controlPoint1.y, controlPoint2.y, finalPoint.y, t);
+
+			generatedPoints.push_back(glm::vec3(x, y, initialPoint.z));
+		}
+	}
+	else if (axis == 1) //ZAxis
+	{
+		float controlPoint1z = (initialPoint.z * (1 - controlPointNormalized1.x)) + (finalPoint.z * controlPointNormalized1.x);
+		float controlPoint1y = (initialPoint.y * (1 - controlPointNormalized1.y)) + (finalPoint.y * controlPointNormalized1.y);
+		glm::vec2 controlPoint1 = glm::vec2(controlPoint1z, controlPoint1y);
+
+		float controlPoint2z = (initialPoint.z * (1 - controlPointNormalized2.x)) + (finalPoint.z * controlPointNormalized2.x);
+		float controlPoint2y = (initialPoint.y * (1 - controlPointNormalized2.y)) + (finalPoint.y * controlPointNormalized2.y);
+		glm::vec2 controlPoint2 = glm::vec2(controlPoint2z, controlPoint2y);
+
+		for (float t = increment; t <= (1 - increment); t += increment) {
+			float z = getBezierValue(initialPoint.z, controlPoint1.x, controlPoint2.x, finalPoint.z, t);
+			float y = getBezierValue(initialPoint.y, controlPoint1.y, controlPoint2.y, finalPoint.y, t);
+
+			generatedPoints.push_back(glm::vec3(initialPoint.x, y, z));
+		}
+	}
+	
+	return generatedPoints;
+}
+
+inline glm::vec2 Terrain::convertFloatTo2Parts(float value1) {
+	return glm::vec2(0);
+}
+
+inline int Terrain::getIndexForRowColumn(const int & i, const int & j, const int & rowSize, const int & columnSize) {
+	return (i * columnSize * 7) - (i * 3) + ((i != rowSize - 1) ? j * 7: j * 4);
+}
+
+inline void Terrain::addXAxisVertices(const int & j, const int & columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition, 
+										glm::vec3 pixel01VertexPosition, std::vector<GLfloat> & vertices) {
+	glm::vec2 controlPointNormalized1 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].green);
+	glm::vec2 controlPointNormalized2 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].blue);
+
+	std::vector<glm::vec3> xAxisBezierPoints = generateIntermediateBezierPoints(1,
+		pixel00VertexPosition, pixel01VertexPosition,
+		controlPointNormalized1, controlPointNormalized2, 3);
+
+	for (int n = 0; n < xAxisBezierPoints.size(); n++) {
+		AddVertex(&vertices, xAxisBezierPoints[n]);
+	}
+}
+
 inline void Terrain::generateTerrain(FIBITMAP * img) {
 	glBindVertexArray(vertexArrayObject);
 	int columnSize = FreeImage_GetWidth(img);
 	int rowSize = FreeImage_GetHeight(img);
 	vertices = std::vector<GLfloat>();
-	std::vector<GLfloat> normals = std::vector<GLfloat>(rowSize * columnSize * 3);
+	std::vector<GLfloat> normals = std::vector<GLfloat>((getIndexForRowColumn(rowSize - 1, columnSize - 1, rowSize, columnSize) + 1) * 3);
 	indexArray = std::vector<unsigned int>();
 	std::vector<int> weights = std::vector<int>(rowSize * columnSize, 0);
 	//float bitDivisor = std::numeric_limits<float>::max();// pow(2, (128 / 4)) - 1;
@@ -183,17 +261,11 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 	unsigned int idx = 0;
 
 	for (int i = 0; i < rowSize; i = i + 1) {
+		//std::cout << "i " << i << std::endl;
 		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
 		FIRGBAF* columnVectorNext = (i == rowSize - 1)? nullptr: (FIRGBAF*)FreeImage_GetScanLine(img, i + 1);
 		for (int j = 0; j < columnSize; j = j + 1) {
 			//std::cout << "i j " << i << " " << j << std::endl;
-			if (i != rowSize - 1) {
-				indexArray.push_back(idx);
-				indexArray.push_back(idx + columnSize);
-				if (j == (columnSize - 1)) {
-					indexArray.push_back(RESTART_PRIMITIVE_CODE);
-				}
-			}
 			float pixelValue00 = columnVector[j].red;
 
 			float columnSizeFloat = (float)columnSize;
@@ -204,42 +276,33 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 			
 			glm::vec3 pixel00VertexPosition = glm::vec3(normalizedI, pixelValue00, normalizedJ);
 			AddVertex(&vertices, pixel00VertexPosition);
+			//std::cout << "Adding Vertex " << i << " " << j << std::endl;
 
-			if (columnVectorNext != nullptr) {
-
-				float pixelValue01 = columnVector[j + 1].red;
-
-				float pixelValue10 = columnVectorNext[j].red;
-
-				//float pixelValue11 = columnVectorNext[j + 1].red;
-				/*std::cout << "Pixel Value is  00 " << pixelValue00 << " 01 " << pixelValue01 << " 10 "
-					<< pixelValue10 << " 11 "
-					<< pixelValue11 << " "
-					<< std::endl;*/
-
-					//Generate vertices for these 4 pixels and connect them by triangles.
-				float normalizedJPlusOne = (j + 1) / columnSizeFloat;
+			if (i != rowSize - 1) {
 				float normalizedIPlusOne = (i + 1) / rowSizeFloat;
-
-				glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
+				float pixelValue10 = columnVectorNext[j].red;
 				glm::vec3 pixel10VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue10, normalizedJ);
-				//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
-
-				glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
 				glm::vec3 q = glm::normalize(pixel10VertexPosition - pixel00VertexPosition);
+				glm::vec3 pixel01VertexPosition = glm::vec3(0);
 
-				glm::vec3 normal = glm::normalize(glm::cross(p, q));
+				if (j != columnSize - 1) {
+					float pixelValue01 = columnVector[j + 1].red;
+					
+					//float pixelValue11 = columnVectorNext[j + 1].red;
 
-				//Add First Triangle
+					float normalizedJPlusOne = (j + 1) / columnSizeFloat;
 
-				//AddVertex(&vertices, pixel11VertexPosition);
-				//AddVertex(&vertices, pixel10VertexPosition);
-				AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
-				//AddVertex(&normals, normal);
-				//AddVertex(&normals, normal);
-				//AddVertex(&normals, normal);
+					pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
+					
+					//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
+
+					glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
+
+					glm::vec3 normal = glm::normalize(glm::cross(p, q));
+					AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
+				}
 
 				if (j != 0) {
 					float normalizedJMinusOne = (j - 1) / columnSizeFloat;
@@ -254,19 +317,71 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 					AppendNormal(normals, normal2, i + 1, j, rowSize, columnSize, weights);
 					AppendNormal(normals, normal2, i + 1, j - 1, rowSize, columnSize, weights);
 				}
+
+				//Temporarily making 2 control points as 1 point TODO
+				glm::vec2 controlPointDownNormalized1 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].green);
+				glm::vec2 controlPointDownNormalized2 = glm::vec2(columnVector[j].green, columnVector[j].blue); //convertFloatTo2Parts(columnVector[j].blue);
+
+				std::vector<glm::vec3> zAxisBezierPoints = generateIntermediateBezierPoints(0,
+					pixel00VertexPosition, pixel10VertexPosition,
+					controlPointDownNormalized1, controlPointDownNormalized2, 3);
+				for (int n = 0; n < zAxisBezierPoints.size(); n++) {
+					AddVertex(&vertices, zAxisBezierPoints[n]);
+				}
+
+				if (j != (columnSize - 1)) {
+					addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
+				}
+
+
+				//Index Addition part
+
+				indexArray.push_back(idx);
+
+				//Add lower left triangle indices here
+				if (j != 0) {
+					int lowerLeftIndex = getIndexForRowColumn(i + 1, j - 1, rowSize, columnSize);
+					int lowerLeftOffset = (i == rowSize - 2)? 0: 3;
+					for (int n = 1; n < 4; n++) {
+						indexArray.push_back(lowerLeftIndex + lowerLeftOffset + n);
+						indexArray.push_back(idx + n);
+					}
+
+					if (j != columnSize - 1) {
+						indexArray.push_back(getIndexForRowColumn(i + 1, j, rowSize, columnSize));
+					
+						indexArray.push_back(RESTART_PRIMITIVE_CODE);
+
+						indexArray.push_back(idx);
+					}
+				}
+
+				if (j != (columnSize - 1)) {
+					for (int n = idx + 1; n < idx + 4; n++) {
+						indexArray.push_back(n);
+						indexArray.push_back(n + 3);
+					}
+				}
+
+				indexArray.push_back(getIndexForRowColumn(i + 1, j, rowSize, columnSize));
+				
+				if (j == (columnSize - 1)) {
+					indexArray.push_back(RESTART_PRIMITIVE_CODE);
+					idx += 4;
+				}
+				else {
+					idx += 7;
+				}
 			}
+			else {
+				if (j != (columnSize - 1)) {
+					float pixelValue01 = columnVector[j + 1].red;
+					float normalizedJPlusOne = (j + 1) / columnSizeFloat;
+					glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
 
-
-			//Add First Triangle
-			//AddVertex(&vertices, pixel00VertexPosition);
-			//AddVertex(&vertices, pixel01VertexPosition);
-			//AddVertex(&vertices, pixel11VertexPosition);
-
-			//AddVertex(&normals, normal2);
-			//AddVertex(&normals, normal2);
-			//AddVertex(&normals, normal2);
-
-			idx++;
+					addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
+				}
+			}
 		}
 	}
 
