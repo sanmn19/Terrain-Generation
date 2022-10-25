@@ -157,6 +157,9 @@
     <ClInclude Include="..\..\imgui-master\misc\single_file\imgui_single_file.h">
       <Filter>imgui</Filter>
     </ClInclude>
+    <ClInclude Include="ShaderLocs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="template_fs.glsl">

@@ -30,13 +30,15 @@ GLuint shader_program = -1;
 
 static const std::string mesh_name = "Amago0.obj";
 //static const std::string texture_name = "AmagoT.bmp";
-static const std::string texture_name = "HeightMap.jpeg";
+static const std::string texture_name = "HeightMap2.png";
+static const std::string complex_features_map_name = "Complex.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
 //MeshData mesh_data;
 
-int drawMode = 0;
-int indexCount = 256 * 255 * 2 + 255;
+int drawMode = 2;
+int indexCount = 20;
+int instanceToRender = 0;
 float angle = -2.841f;
 float scale[3] = { 1, 1, 1 };
 float aspect = 1.0f;
@@ -52,7 +54,7 @@ float c3 = 0;
 
 bool recording = false;
 
-Terrain terrain;
+Terrain * terrain = nullptr;
 
 //For an explanation of this program's structure see https://www.glfw.org/docs/3.3/quick.html 
 
@@ -98,7 +100,44 @@ void draw_gui(GLFWwindow* window)
    ImGui::SliderFloat3("Scale", &scale[0], 0.01f, 100.0f);
    ImGui::SliderFloat3("Light Dir", &lightDir[0], -1, 1);
    ImGui::SliderInt("Draw Mode", &drawMode, 0, 3);
-   ImGui::InputInt("Indices", &indexCount, 1, 200000);
+   if (ImGui::InputInt("Indices", &indexCount, 1, 200000)) {
+       if (terrain != nullptr) {
+           terrain->setIndexCountToRender(indexCount);
+       }
+   }
+   
+   if (ImGui::InputInt("Instance To Render", &instanceToRender, 1, 1000000)) {
+       if (terrain != nullptr) {
+           terrain->setInstancesToRender(instanceToRender);
+       }
+   }
+
+   if (ImGui::Button("Process Terrains for training")) {
+       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f);
+       terrain->generateTerrain();
+       instanceToRender = terrain->instancesToRender;
+   }
+
+   if (ImGui::Button("Process Terrains for final output")) {
+       terrain = new Terrain(false, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f);
+       terrain->generateTerrain();
+       instanceToRender = terrain->instancesToRender;
+   }
+
+   if (terrain != nullptr) {
+       if (terrain->forTraining) {
+           if (ImGui::Button("Export Image")) {
+                FIBITMAP* exportImage = nullptr;
+                terrain->exportOutput(exportImage, "outputImage.png");
+           }
+       }
+       else {
+            if (ImGui::Button("Export as OBJ")) {
+                
+            }
+       }
+   }
+
    ImGui::SliderFloat("View angle", &angle, -glm::pi<float>(), +glm::pi<float>());
    //ImGui::SliderFloat("Scale", &scale, 0.01f, +100.0f);
 
@@ -143,15 +182,14 @@ void display(GLFWwindow* window)
    glm::mat4 PVM = P*V*M;
    int PVM_loc = glGetUniformLocation(shader_program, "PVM");
    glUniformMatrix4fv(PVM_loc, 1, false, glm::value_ptr(PVM));
-   terrain.setAngle(angle);
-   terrain.setDrawMode(drawMode);
-   terrain.setIndexCountToRender(indexCount);
-   terrain.render(V, P, shader_program, lightDir);
 
-   //glBindVertexArray(mesh_data.mVao);
-   //glDrawElements(GL_TRIANGLES, mesh_data.mSubmesh[0].mNumIndices, GL_UNSIGNED_INT, 0);
-   //For meshes with multiple submeshes use mesh_data.DrawMesh(); 
-   terrain.setScale(glm::vec3(scale[0], scale[1], scale[2]));
+   if (terrain != nullptr) {
+       terrain->setAngle(angle);
+       terrain->setDrawMode(drawMode);
+       terrain->setIndexCountToRender(indexCount);
+       terrain->render(V, P, shader_program, lightDir);
+       terrain->setScale(glm::vec3(scale[0], scale[1], scale[2]));
+   }
 
    draw_gui(window);
 
@@ -294,8 +332,6 @@ int main(int argc, char **argv)
    glfwMakeContextCurrent(window);
 
    initOpenGL();
-   terrain = Terrain(glm::vec3(0.0f, 0.0f, 0.0f), texture_name, glm::vec3(scale[0], scale[1], scale[2]));
-   terrain.generateTerrain();
    
    //Init ImGui
    IMGUI_CHECKVERSION();

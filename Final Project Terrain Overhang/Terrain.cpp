@@ -7,6 +7,7 @@
 #include <fstream>
 #include "LoadTexture.h"
 #include <iostream>
+#include "ShaderLocs.h"
 
 #define RESTART_PRIMITIVE_CODE 0xffffffff
 
@@ -14,12 +15,17 @@
 
 class Terrain {
 
+	class Voxel;
+
 	glm::vec3 position;
 
 	glm::vec3 scale;
 	float angleY;
 
 	std::string filePath;
+	std::string complexFilePath;
+
+	std::vector<std::vector<std::vector<Terrain::Voxel *>>> voxelMap;
 
 	//GLfloat* vertexBufferData;
 	//GLfloat* vertexNormalData;
@@ -31,7 +37,35 @@ class Terrain {
 
 	int num_indices;
 	int indexCount;
-	int drawMode;
+	int drawMode = 1;
+	int maxVoxelCount = 0;
+	
+	int instanceCount = 0;
+
+	std::vector <GLfloat> boxVertices = {
+		-0.5f, -0.5f, -0.5f,
+		-1, -1, -1,
+		0.5f, -0.5f, -0.5f,
+		1, -1, -1,
+		0.5f, -0.5f, 0.5f,
+		1, -1, 1,
+		-0.5f, -0.5f, 0.5f,
+		-1, -1, 1,
+		-0.5f, 0.5f, -0.5f,
+		-1, 1, -1,
+		0.5f, 0.5f, -0.5f,
+		1, 1, -1,
+		0.5f, 0.5f, 0.5f,
+		1, 1, 1,
+		-0.5f, 0.5f, 0.5f,
+		-1, 1, 1,
+	};
+
+	std::vector <unsigned int> boxIndices = {
+		0, 1, 3, 2, 7, 6, 4, 5, 0, 1, RESTART_PRIMITIVE_CODE,
+		0, 4, 3, 7, RESTART_PRIMITIVE_CODE,
+		1, 5, 2, 6
+	};
 
 	std::vector<std::vector<int>> imageData;
 
@@ -40,6 +74,9 @@ class Terrain {
 	void AppendNormal(std::vector <GLfloat>& a, const glm::vec3 n, const int& index, std::vector <int>& weights);
 
 	GLuint index_buffer;
+
+	FIRGBAF* multiply(FIRGBAF* pixel, float multiplier);
+	FIRGBAF* add(FIRGBAF* sum, FIRGBAF* pixel1, FIRGBAF* pixel2, FIRGBAF* pixel3);
 
 	std::vector<glm::vec3> generateIntermediateBezierPoints(int axis, glm::vec3& initialPoint, glm::vec3 & finalPoint, glm::vec2 controlPoint1, glm::vec2 controlPoint2, int pointsToBeGenerated);
 	float getBezierValue(float initialPoint, float controlPoint1, float controlPoint2, float finalPoint, float t);
@@ -52,32 +89,58 @@ class Terrain {
 	std::vector<glm::vec3> getZAxisVertices(const int& j, const int& columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition,
 		glm::vec3 pixel10VertexPosition);
 
+	void generateRenderBuffers(int rowSize, int columnSize);
+
+	FIBITMAP* originalHeightMap;
+	FIBITMAP* complexImage;
+	bool renderMode = 0; //0 = Voxel 1 = Mesh
+
 public:
 
+	bool forTraining = true;
+
+	class Voxel {
+	public:
+		double angleOfTalus;
+		int materialId;
+		glm::vec3 velocity;
+	};
+
+	int instancesToRender;
 	//unsigned int vertexCount;
 	std::vector <GLfloat> vertices;
 	//std::vector <GLfloat> normals;
 	std::vector <unsigned int> indexArray;
 	glm::mat4 modelMatrix;
+	double voxelDimension;
 
 	Terrain() = default;
-	Terrain(glm::vec3 position, const std::string & filePath, glm::vec3 scale);
+	Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, bool renderMode);
 
 	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3]);
 
 	void setAngle(float angle);
 	void setScale(glm::vec3 scale);
 	void setDrawMode(int drawMode);
+	void setRenderMode(int renderMode);
 
 	glm::vec3 getScale();
 	void setIndexCountToRender(int indexCount);
+	void setInstancesToRender(int instanceCount);
+
+	void exportOutput(FIBITMAP* img, const char* outputFileName);
+	glm::vec4 processVoxelCell(int i , int j);
 
 	void generateTerrain();
+	void generateTerrainForFinalOutput(FIBITMAP* img);
 
 	glm::mat4 getModelMatrix();
-	void generateTerrain(FIBITMAP * img);
+	void generateTerrain(FIBITMAP * img, FIBITMAP* complexImg);
+	std::vector<GLuint> createModelMatrixBuffers(int rowSize, int columnSize, bool createBuffer = true);
 
 	void SaveOBJ(std::vector<char> filename);
+
+	std::vector<std::vector<FIRGBAF*>> convolution(FIBITMAP* img);
 };
 
 inline void Terrain::setAngle(float angle) {
@@ -92,18 +155,40 @@ inline void Terrain::setIndexCountToRender(int indexCount) {
 	this->indexCount = indexCount;
 	if (indexCount > num_indices) {
 		std::cout << "Index Count " << indexCount << " greater than num_indices " << num_indices << std::endl;
+		this->indexCount = num_indices;
 	}
 }
 
-inline Terrain::Terrain(glm::vec3 position, const std::string & filePath, glm::vec3 scale) {
+inline void Terrain::setInstancesToRender(int instanceCount) {
+	this->instancesToRender = instanceCount;
+	if (instancesToRender > instanceCount) {
+		std::cout << "Instance Count " << instancesToRender << " greater than actual instances " << instanceCount << std::endl;
+		instancesToRender = instanceCount;
+	}
+}
+
+inline void Terrain::setRenderMode(int renderMode) {
+	this->renderMode = renderMode;
+}
+
+inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string& complexFilePath, glm::vec3 scale, double voxelDimension = 1.0, bool renderMode) {
+	this->forTraining = forTraining;
+	setRenderMode(renderMode);
 	this->position = position;
 	this->filePath = filePath;
+	this->complexFilePath = complexFilePath;
 	this->scale = scale;
+	this->voxelDimension = voxelDimension;
+
+	num_indices = boxIndices.size();
+	indexCount = num_indices;
 
 	//generateTerrain();
 	glGenVertexArrays(1, &vertexArrayObject);
 	glGenBuffers(1, &vertexAndNormalbuffer);
 	glGenBuffers(1, &index_buffer);
+
+	maxVoxelCount = 1 / voxelDimension;
 
 	FreeImage_Initialise();
 }
@@ -112,7 +197,7 @@ inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint program
 {	
 	modelMatrix = getModelMatrix();
 
-	glm::mat4 mvp = projection * view * modelMatrix;
+	glm::mat4 mvp = projection * view;
 
 	int MatrixID = glGetUniformLocation(programID, "PVM");
 	glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
@@ -150,7 +235,12 @@ inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint program
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
 	
-	glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+	//glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+	glDrawElementsInstanced( GL_TRIANGLE_STRIP,
+		indexCount,
+		GL_UNSIGNED_INT,
+		0,
+		instancesToRender);
 
 	glDisable(GL_PRIMITIVE_RESTART);
 
@@ -262,8 +352,209 @@ inline std::vector<glm::vec3> Terrain::getZAxisVertices(const int& j, const int&
 		controlPointNormalized1, controlPointNormalized2, 3);
 }
 
-inline void Terrain::generateTerrain(FIBITMAP * img) {
-	glBindVertexArray(vertexArrayObject);
+inline FIRGBAF * Terrain::multiply(FIRGBAF* pixel, float multiplier) {
+	FIRGBAF* newPixel = new FIRGBAF();
+	newPixel->alpha = 0;
+	newPixel->red = pixel->red * multiplier;
+	newPixel->green = pixel->green * multiplier;
+	newPixel->blue = pixel->blue * multiplier;
+
+	return newPixel;
+}
+
+inline FIRGBAF* Terrain::add(FIRGBAF * sum, FIRGBAF* pixel1, FIRGBAF* pixel2, FIRGBAF* pixel3) {
+	sum->red += pixel1->red + pixel2->red + pixel3->red;
+	sum->green += pixel1->green + pixel2->green + pixel3->green;
+	sum->blue += pixel1->blue + pixel2->blue + pixel3->blue;
+	sum->alpha += pixel1->alpha + pixel2->alpha + pixel3->alpha;
+
+	return sum;
+}
+
+inline std::vector<std::vector<FIRGBAF *>> Terrain::convolution(FIBITMAP* img)
+{
+	int columnSize = FreeImage_GetWidth(img);
+	int rowSize = FreeImage_GetHeight(img);
+
+	std::vector<std::vector<FIRGBAF *>> result;
+
+	for (int i = 0; i < rowSize; i = i + 1) {
+		
+		//std::cout << "i " << i << std::endl;
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
+		FIRGBAF* columnMinusOneVector = nullptr;
+		if (i != 0) {
+			columnMinusOneVector = (FIRGBAF*)FreeImage_GetScanLine(img, i - 1);
+		}
+		else {
+			columnMinusOneVector = columnVector;
+		}
+		 
+		FIRGBAF* columnPlusOneVector = nullptr;
+		if (i != rowSize - 1) {
+			columnPlusOneVector = (FIRGBAF*)FreeImage_GetScanLine(img, i + 1);
+		}
+		else {
+			columnPlusOneVector = columnVector;
+		}
+
+		std::vector<FIRGBAF *> columns;
+
+		for (int j = 0; j < columnSize; j = j + 1) {
+			FIRGBAF* value = new FIRGBAF();
+			value->red = 0;
+			value->green = 0;
+			value->blue = 0;
+			value->alpha = 0;
+
+			if (j == 0) {
+				value = add(value, multiply(&columnMinusOneVector[0], 0.0947416f), multiply(&columnMinusOneVector[j], 0.118318f), multiply(&columnMinusOneVector[j + 1], 0.0947416f));
+				value = add(value, multiply(&columnVector[0], 0.118318f), multiply(&columnVector[j], 0.147761f), multiply(&columnVector[j + 1], 0.118318f));
+				value = add(value, multiply(&columnPlusOneVector[0], 0.0947416f), multiply(&columnPlusOneVector[j], 0.118318f), multiply(&columnPlusOneVector[j + 1], 0.0947416f));
+			}
+			else if (j == columnSize - 1) {
+				value = add(value, multiply(&columnMinusOneVector[j - 1], 0.0947416f), multiply(&columnMinusOneVector[j], 0.118318f), multiply(&columnMinusOneVector[columnSize - 1], 0.0947416f));
+				value = add(value, multiply(&columnVector[j - 1], 0.118318f), multiply(&columnVector[j], 0.147761f), multiply(&columnVector[columnSize - 1], 0.118318f));
+				value = add(value, multiply(&columnPlusOneVector[j - 1], 0.0947416f), multiply(&columnPlusOneVector[j], 0.118318f), multiply(&columnPlusOneVector[columnSize - 1], 0.0947416f));
+			}
+			else {
+				value = add(value, multiply(&columnMinusOneVector[j - 1], 0.0947416f), multiply(&columnMinusOneVector[j], 0.118318f), multiply(&columnMinusOneVector[j + 1], 0.0947416f));
+				value = add(value, multiply(&columnVector[j - 1], 0.118318f), multiply(&columnVector[j], 0.147761f), multiply(&columnVector[j + 1], 0.118318f));
+				value = add(value, multiply(&columnPlusOneVector[j - 1], 0.0947416f), multiply(&columnPlusOneVector[j], 0.118318f), multiply(&columnPlusOneVector[j + 1], 0.0947416f));
+			}
+
+			if (value->red != 0) {
+				value->red += 0.35f;
+			}
+
+			if (value->green != 0) {
+				value->green += 0.35f;
+			}
+
+			if (value->blue != 0) {
+				value->blue += 0.35f;
+			}
+
+			if (value->alpha != 0) {
+				value->alpha += 0.35f;
+			}
+			
+			columns.push_back(value);
+		}
+
+		result.push_back(columns);
+	}
+
+	return result;
+}
+
+inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int columnSize, bool createBuffer)
+{
+	std::vector<glm::mat4>* matrix_data_solid = new std::vector<glm::mat4>();
+	//std::vector<glm::mat4>* matrix_data_eroded = new std::vector<glm::mat4>();
+	std::vector<glm::vec4>* colors = new std::vector<glm::vec4>();
+
+	for (int i = 0; i < rowSize; i++)
+	{
+		for (int j = 0; j < columnSize; j++)
+		{
+			for (int k = 0; k < voxelMap[i][j].size(); k++)
+			{
+				glm::vec3 tran = glm::vec3(i * voxelDimension, k * voxelDimension, j * voxelDimension);
+				glm::mat4 trans = glm::translate(glm::mat4(1.f), tran);
+				trans = glm::scale(trans, glm::vec3(voxelDimension, voxelDimension, voxelDimension));
+				if (voxelMap[i][j][k]->materialId == 0) {
+					matrix_data_solid->push_back(trans);
+					colors->push_back(glm::vec4(1, 1, 1, 1));
+				}
+				else if (voxelMap[i][j][k]->materialId == 1) {
+					matrix_data_solid->push_back(trans);
+					//matrix_data_eroded->push_back(trans);
+					colors->push_back(glm::vec4(0, 0, 0, 1));
+				}
+				
+			}
+		}
+	}
+
+	std::vector<GLuint> model_matrix_buffers;
+
+	if (createBuffer) {
+		GLuint solidMaterialBuffer;
+		glGenBuffers(1, &solidMaterialBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, solidMaterialBuffer);
+		glBufferData(GL_ARRAY_BUFFER, matrix_data_solid->size() * sizeof(glm::mat4), matrix_data_solid->data(), GL_DYNAMIC_DRAW);
+		model_matrix_buffers.push_back(solidMaterialBuffer);
+
+		GLuint colorData;
+		glGenBuffers(1, &colorData);
+		glBindBuffer(GL_ARRAY_BUFFER, colorData);
+		glBufferData(GL_ARRAY_BUFFER, colors->size() * sizeof(glm::vec4), colors->data(), GL_DYNAMIC_DRAW);
+		model_matrix_buffers.push_back(colorData);
+
+		/*GLuint erodedMaterialBuffer;
+		glGenBuffers(1, &erodedMaterialBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, erodedMaterialBuffer);
+		glBufferData(GL_ARRAY_BUFFER, matrix_data_eroded->size() * sizeof(glm::mat4), matrix_data_eroded->data(), GL_DYNAMIC_DRAW);
+		model_matrix_buffers.push_back(erodedMaterialBuffer);*/
+	}
+
+	return model_matrix_buffers;
+}
+
+inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
+	if (renderMode == 0) {	//Voxel
+		glBindVertexArray(vertexArrayObject);
+		std::vector<GLuint> instanceMatrices = createModelMatrixBuffers(rowSize, columnSize, true);
+		
+		glBindBuffer(GL_ARRAY_BUFFER, instanceMatrices[0]);
+		// bounding model matrix to shader
+		for (int i = 0; i < 4; i++)
+		{
+			glVertexAttribPointer(AttribLoc::matPosInstance + i,
+				4, GL_FLOAT, GL_FALSE,
+				sizeof(glm::mat4),
+				(void*)(sizeof(glm::vec4) * i));
+			glEnableVertexAttribArray(AttribLoc::matPosInstance + i);
+			glVertexAttribDivisor(AttribLoc::matPosInstance + i, 1);
+		}
+
+		glBindBuffer(GL_ARRAY_BUFFER, instanceMatrices[1]);
+		glVertexAttribPointer(AttribLoc::colorsInstance,
+			4, GL_FLOAT, GL_FALSE,
+			sizeof(glm::vec4),
+			(void*)0);
+		glEnableVertexAttribArray(AttribLoc::colorsInstance);
+		glVertexAttribDivisor(AttribLoc::colorsInstance, 1);
+
+		//replace with actual png terrain generation data by adding to vertices vector data
+
+		glBindBuffer(GL_ARRAY_BUFFER, vertexAndNormalbuffer); //Specify the buffer where vertex attribute data is stored.
+		//Upload from main memory to gpu memory.
+		glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * boxVertices.size(), boxVertices.data(), GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer); //GL_ELEMENT_ARRAY_BUFFER is the target for buffers containing indices
+		//Upload from main memory to gpu memory.
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * boxIndices.size(), boxIndices.data(), GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+
+		//Tell opengl how to get the attribute values out of the vbo (stride and offset).
+		const int stride = (3 + 3) * sizeof(float);
+		glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, BUFFER_OFFSET(0));
+		glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, BUFFER_OFFSET((3) * sizeof(float)));
+
+		glBindVertexArray(0); //unbind the vao
+	}
+	else if (renderMode == 1) {
+		//should I use ray marching?
+	}
+}
+
+inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
+	instanceCount = 0;
+	
 	int columnSize = FreeImage_GetWidth(img);
 	int rowSize = FreeImage_GetHeight(img);
 	vertices = std::vector<GLfloat>();
@@ -272,254 +563,154 @@ inline void Terrain::generateTerrain(FIBITMAP * img) {
 	std::vector<int> weights = std::vector<int>(rowSize * columnSize, 0);
 	//float bitDivisor = std::numeric_limits<float>::max();// pow(2, (128 / 4)) - 1;
 
-	num_indices = ((rowSize - 1) * (columnSize) * 2) + (rowSize - 1);
-	indexCount = num_indices;
-
 	unsigned int idx = 0;
 
 	float columnSizeFloat = (float)columnSize;
 	float rowSizeFloat = (float)rowSize;
 
+	std::vector<std::vector<FIRGBAF *>> gaussianBlurredMatrix = convolution(complexImg);
+
+	//voxelMap.reserve(rowSize);
+	
+
 	for (int i = 0; i < rowSize; i = i + 1) {
 		//std::cout << "i " << i << std::endl;
 		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
-		FIRGBAF* columnVectorNext = (i == rowSize - 1)? nullptr: (FIRGBAF*)FreeImage_GetScanLine(img, i + 1);
+		//FIRGBAF* complexColumnVector = (FIRGBAF*)FreeImage_GetScanLine(complexImg, i);
 
-		float normalizedI = i / rowSizeFloat;
-		float normalizedIPlusOne = (i + 1) / rowSizeFloat;
+		std::vector<std::vector<Voxel*>> columnVoxels;
 
 		for (int j = 0; j < columnSize; j = j + 1) {
 			//std::cout << "i j " << i << " " << j << std::endl;
-			float pixelValue00 = columnVector[j].red;
+			float height = columnVector[j].red;
+			float voxelCount = height / voxelDimension;
 
-			float normalizedJ = j / columnSizeFloat;
-			
-			glm::vec3 pixel00VertexPosition = glm::vec3(normalizedI, pixelValue00, normalizedJ);
-			AddVertex(&vertices, pixel00VertexPosition);
+			std::vector<Voxel*> rowColumnVoxels;
+
+			for (int k = 0; k < voxelCount; k++) {
+				Voxel* newVoxel = new Voxel();
+				
+				rowColumnVoxels.push_back(newVoxel);
+				instanceCount++;
+			}
+
+			columnVoxels.push_back(rowColumnVoxels);
+
 			//std::cout << "Adding Vertex " << i << " " << j << std::endl;
-
-			//if (i != rowSize - 1) {
-			if (j != columnSize - 1) {
-				//float pixelValue10 = columnVectorNext[j].red;
-				//glm::vec3 pixel10VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue10, normalizedJ);
-				//glm::vec3 q = glm::normalize(pixel10VertexPosition - pixel00VertexPosition);
-
-				float pixelValue01 = columnVector[j + 1].red;
-				float normalizedJPlusOne = (j + 1) / columnSizeFloat;
-				glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
-
-				//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
-
-				/*
-				glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
-
-				glm::vec3 normal = glm::normalize(glm::cross(p, q));
-				AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
-				AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
-				*/
-
-				addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
-			}
-
-				/*
-				if (j != 0) {
-					float normalizedJMinusOne = (j - 1) / columnSizeFloat;
-
-					float pixelValue1Minus1 = columnVectorNext[j - 1].red;
-					glm::vec3 pixel1Minus1VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue1Minus1, normalizedJMinusOne);
-
-					glm::vec3 q2 = glm::normalize(pixel1Minus1VertexPosition - pixel00VertexPosition);
-
-					glm::vec3 normal2 = glm::normalize(glm::cross(q, q2));
-					AppendNormal(normals, normal2, i, j, rowSize, columnSize, weights);
-					AppendNormal(normals, normal2, i + 1, j, rowSize, columnSize, weights);
-					AppendNormal(normals, normal2, i + 1, j - 1, rowSize, columnSize, weights);
-				}*/
-
-				//Temporarily making 2 control points as 1 point TODO
-				/*glm::vec2 controlPointDownNormalized1;
-				glm::vec2 controlPointDownNormalized2;
-				convertFloatTo4Parts(columnVector[j].green, controlPointDownNormalized1, controlPointDownNormalized2, pixel00VertexPosition.y - pixel10VertexPosition.y);
-				std::vector<glm::vec3> zAxisBezierPoints = generateIntermediateBezierPoints(0,
-					pixel00VertexPosition, pixel10VertexPosition,
-					controlPointDownNormalized1, controlPointDownNormalized2, 3);
-
-				for (int k = 0; k < zAxisBezierPoints.size(); k++) {
-
-				}*/
-				
-				/* for (int n = 0; n < zAxisBezierPoints.size(); n++) {
-					AddVertex(&vertices, zAxisBezierPoints[n]);
-				} */
-
-				
-			/* }
-			else {
-				float pixelValue01 = columnVector[j + 1].red;
-				float normalizedJPlusOne = (j + 1) / columnSizeFloat;
-				glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
-
-				addXAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel01VertexPosition, vertices);
-			}*/
 		}
 
-		if (i != rowSize - 1) {
-			for (int k = 0; k < 3; k++) {
-				for (int j = 0; j < columnSize; j++) {
-					float normalizedJ = j / columnSizeFloat;
-					float pixelValue00 = columnVector[j].red;
-					glm::vec3 pixel00VertexPosition = glm::vec3(normalizedI, pixelValue00, normalizedJ);
-
-					float pixelValue10 = columnVectorNext[j].red;
-					glm::vec3 pixel10VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue10, normalizedJ);
-
-					std::vector<glm::vec3> zAxisBezierPoints = getZAxisVertices(j, columnSize, columnVector, pixel00VertexPosition, pixel10VertexPosition);
-
-					AddVertex(&vertices, zAxisBezierPoints[k]);
-
-					if (j != columnSize - 1) {
-						float pixelValue01 = columnVector[j + 1].red;
-						float normalizedJPlusOne = (j + 1) / columnSizeFloat;
-						glm::vec3 pixel01VertexPosition = glm::vec3(normalizedI, pixelValue01, normalizedJPlusOne);
-
-						float pixelValue11 = columnVectorNext[j + 1].red;
-						glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
-
-						//glm::vec2 controlPointDownNormalized1;
-						//glm::vec2 controlPointDownNormalized2;
-						//convertFloatTo4Parts(columnVector[j].green, controlPointDownNormalized1, controlPointDownNormalized2, pixel00VertexPosition.y - pixel10VertexPosition.y);
-						// generateIntermediateBezierPoints(0,
-							//pixel00VertexPosition, pixel10VertexPosition,
-							//controlPointDownNormalized1, controlPointDownNormalized2, 3);
-
-					
-						std::vector<glm::vec3> jPlusOneZAxisBezierPoints = getZAxisVertices(j + 1, columnSize, columnVector, pixel01VertexPosition, pixel11VertexPosition);
-						std::vector<glm::vec3> xAxisBezierPoints = getXAxisVertices(j, columnSize, columnVector, zAxisBezierPoints[k], jPlusOneZAxisBezierPoints[k]);
-
-						for (int m = 0; m < 3; m++) {
-							AddVertex(&vertices, xAxisBezierPoints[m]);
-						}
-					}
-				}
-			}
-		}
-
+		voxelMap.push_back(columnVoxels);
 	}
 
-	//Index Addition part
+	instancesToRender = instanceCount;
 
-	int totalColumns = ((columnSize - 1) * 4) + 1;
-	for (int i = 0; i < rowSize - 1; i++) {
-		for (int m = 0; m < 4; m++) {
-			for (int j = 0; j < totalColumns; j++) {
-				indexArray.push_back(idx);
-				indexArray.push_back(idx + totalColumns);
-				/*
-				//Add lower left triangle indices here
-				if (j != 0) {
-					int lowerLeftIndex = getIndexForRowColumn(i + 1, j - 1, rowSize, columnSize);
-					int lowerLeftOffset = (i == rowSize - 2) ? 0 : 3;
-					for (int n = 1; n < 4; n++) {
-						indexArray.push_back(lowerLeftIndex + lowerLeftOffset + n);
-						indexArray.push_back(idx + n);
-					}
+	float maxHeightOfTerrain = 0;	//Maybe used later
 
-					if (j != columnSize - 1) {
-						indexArray.push_back(getIndexForRowColumn(i + 1, j, rowSize, columnSize));
+	for (int i = 0; i < rowSize; i = i + 1) {
+		//std::cout << "i " << i << std::endl;
 
-						indexArray.push_back(RESTART_PRIMITIVE_CODE);
+		for (int j = 0; j < columnSize; j = j + 1) {
+			float overHangValue = gaussianBlurredMatrix[i][j]->red;
+			float caveValue = gaussianBlurredMatrix[i][j]->green;
 
-						indexArray.push_back(idx);
-					}
-				}
+			float looseMaterialHeight = 0;
+			float looseMaterialStart = -1;
+			int complexFeatureFoundCode = 0;
 
-				if (j != (columnSize - 1)) {
-					for (int n = idx + 1; n < idx + 4; n++) {
-						indexArray.push_back(n);
-						indexArray.push_back(n + 3);
-					}
-				}
+			float height = voxelMap[i][j].size() * voxelDimension;
 
-				indexArray.push_back(getIndexForRowColumn(i + 1, j, rowSize, columnSize));
-
-				if (j == (columnSize - 1)) {
-					indexArray.push_back(RESTART_PRIMITIVE_CODE);
-					idx += 4;
-				}
-				else {
-					idx += 7;
-				}*/
-
-				if (j == (totalColumns - 1)) {
-					indexArray.push_back(RESTART_PRIMITIVE_CODE);
+			if (overHangValue > 0) {	//Overhangs override caves
+				looseMaterialHeight = (overHangValue) * 0.7f * height;
+				looseMaterialStart = (overHangValue) * 0.15f * height;
+				complexFeatureFoundCode = 1;
+			}
+			else {
+				if (caveValue > 0) {
+					looseMaterialHeight = (caveValue) * 0.3f; //Static height of cave
+					looseMaterialStart = (caveValue) * 0.15f * height;  //Is at a relative height
+					complexFeatureFoundCode = 2;
 				}
 				idx++;
 			}
+
+			int startVoxel = int(looseMaterialStart / voxelDimension);
+			int endVoxel = int((looseMaterialStart + looseMaterialHeight) / voxelDimension);
+
+			for (int k = 0; k < voxelMap[i][j].size(); k++) {
+				if (k >= startVoxel && k <= endVoxel)
+				{
+					voxelMap[i][j][k]->materialId = 1;
+					//Assign other properties like angle of talus
+				}
+				else
+				{
+					voxelMap[i][j][k]->materialId = 0;
+				}
+			}
+
 		}
 	}
 
-	float normalInvert = 1;
+	generateRenderBuffers(rowSize, columnSize);
+}
 
-	for (int n = 0; n < indexArray.size() - 2; n += 1) {
-		if (indexArray[n + 2] != RESTART_PRIMITIVE_CODE) {
-			int index1 = indexArray[n] * 3;
-			int index2 = indexArray[n + 1] * 3;
-			int index3 = indexArray[n + 2] * 3;
-			glm::vec3 vertex1 = glm::vec3(vertices[index1], vertices[index1 + 1], vertices[index1 + 2]);
-			glm::vec3 vertex2 = glm::vec3(vertices[index2], vertices[index2 + 1], vertices[index2 + 2]);
-			glm::vec3 vertex3 = glm::vec3(vertices[index3], vertices[index3 + 1], vertices[index3 + 2]);
-			
-			glm::vec3 q = glm::normalize(vertex2 - vertex1);
-			glm::vec3 p = glm::normalize(vertex3 - vertex1);
-			glm::vec3 normal = glm::normalize(normalInvert * glm::cross(p, q));
+inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
+	instanceCount = 0;
+	int columnSize = FreeImage_GetWidth(img);
+	int rowSize = FreeImage_GetHeight(img);
 
-			AppendNormal(normals, normal, index1, weights);
-			AppendNormal(normals, normal, index2, weights);
-			AppendNormal(normals, normal, index3, weights);
-			
-			normalInvert = -normalInvert;
+	for (int i = 0; i < rowSize; i = i + 1) {
+		//std::cout << "i " << i << std::endl;
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
+
+		std::vector<std::vector<Voxel*>> columnVoxels;
+
+		for (int j = 0; j < columnSize; j = j + 1) {
+			//std::cout << "i j " << i << " " << j << std::endl;
+			float baseRockHeight = columnVector[j].red;
+			float airLayerHeight = columnVector[j].green;
+			float overhangHeight = columnVector[j].blue;
+			float baseVoxelCount = (baseRockHeight) / voxelDimension;
+			float airVoxelCount = (airLayerHeight) / voxelDimension;
+			float overhangCount = (overhangHeight) / voxelDimension;
+
+			std::vector<Voxel*> rowColumnVoxels;
+
+			for (int k = 0; k < baseVoxelCount; k++) {
+				Voxel* newVoxel = new Voxel();
+				newVoxel->materialId = 0;
+
+				rowColumnVoxels.push_back(newVoxel);
+				instanceCount++;
+			}
+
+			for (int k = 0; k < airVoxelCount; k++) {
+				Voxel* newVoxel = new Voxel();
+				newVoxel->materialId = 2;
+
+				rowColumnVoxels.push_back(newVoxel);
+				instanceCount++;
+			}
+
+			for (int k = 0; k < overhangCount; k++) {
+				Voxel* newVoxel = new Voxel();
+				newVoxel->materialId = 0;
+
+				rowColumnVoxels.push_back(newVoxel);
+				instanceCount++;
+			}
+
+			columnVoxels.push_back(rowColumnVoxels);
+
+			//std::cout << "Adding Vertex " << i << " " << j << std::endl;
 		}
-		else {
-			n += 2;
-		}
+
+		voxelMap.push_back(columnVoxels);
 	}
 
-	//replace with actual png terrain generation data by adding to vertices vector data
+	instancesToRender = instanceCount;
 
-	std::vector<GLfloat> finalData = std::vector<GLfloat>();
-
-	for (int i = 0; i < vertices.size(); i += 3) {
-		finalData.push_back(vertices[i]);
-		finalData.push_back(vertices[i + 1]);
-		finalData.push_back(vertices[i + 2]);
-
-		finalData.push_back(normals[i]);
-		finalData.push_back(normals[i + 1]);
-		finalData.push_back(normals[i + 2]);
-	}
-
-	//vertexBufferData = &vertices[0];
-	//vertexIndexData = &indexArray[0];
-	//vertexCount = vertices.size();
-
-	glBindBuffer(GL_ARRAY_BUFFER, vertexAndNormalbuffer); //Specify the buffer where vertex attribute data is stored.
-	//Upload from main memory to gpu memory.
-	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * finalData.size(), finalData.data(), GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer); //GL_ELEMENT_ARRAY_BUFFER is the target for buffers containing indices
-	//Upload from main memory to gpu memory.
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indexArray.size(), indexArray.data(), GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-
-	//Tell opengl how to get the attribute values out of the vbo (stride and offset).
-	const int stride = (3 + 3) * sizeof(float);
-	glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, BUFFER_OFFSET(0));
-	glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, BUFFER_OFFSET((3) * sizeof(float)));
-
-	glBindVertexArray(0); //unbind the vao
+	generateRenderBuffers(rowSize, columnSize);
 }
 
 inline void Terrain::generateTerrain() {
@@ -530,22 +721,39 @@ inline void Terrain::generateTerrain() {
 		return;
 	}*/
 
-	FIBITMAP* tempImg = FreeImage_Load(FreeImage_GetFileType(this->filePath.c_str(), 0), this->filePath.c_str());
-	FIBITMAP* img = FreeImage_ConvertToRGBAF(tempImg);
-	FreeImage_Unload(tempImg);
+	if (forTraining) {
+		FIBITMAP* tempImg = FreeImage_Load(FreeImage_GetFileType(this->filePath.c_str(), 0), this->filePath.c_str());
+		FIBITMAP* img = FreeImage_ConvertToRGBAF(tempImg);
+		//FreeImage_Unload(tempImg);
+		this->originalHeightMap = img;
 
-	/*std::vector<std::vector<int>> rowValues(img.rows);
-	for (int x = 0; x < img.rows; x++) {
-		std::vector<int> columnValues(img.cols);
-		for (int y = 0; y < img.cols; y++) {
-			int pixelValue = (int)img.at<uchar>(x, y);
-			columnValues[y] = pixelValue;
-			//std::cout << "Pixel Value is  " << pixelValue << std::endl;// [0] << " " << pixelValue[1] << " " << pixelValue[2] << std::endl;
-		}
-		rowValues[x] = columnValues;
-	}*/
+		FIBITMAP* tempImg2 = FreeImage_Load(FreeImage_GetFileType(this->complexFilePath.c_str(), 0), this->complexFilePath.c_str());
+		FIBITMAP* img2 = FreeImage_ConvertToRGBAF(tempImg2);
+		this->complexImage = img2;
 
-	generateTerrain(img);
+		//FreeImage_Unload(tempImg2);
+
+		/*std::vector<std::vector<int>> rowValues(img.rows);
+		for (int x = 0; x < img.rows; x++) {
+			std::vector<int> columnValues(img.cols);
+			for (int y = 0; y < img.cols; y++) {
+				int pixelValue = (int)img.at<uchar>(x, y);
+				columnValues[y] = pixelValue;
+				//std::cout << "Pixel Value is  " << pixelValue << std::endl;// [0] << " " << pixelValue[1] << " " << pixelValue[2] << std::endl;
+			}
+			rowValues[x] = columnValues;
+		}*/
+
+		generateTerrain(img, img2);
+	}
+	else {
+		FIBITMAP* tempImg = FreeImage_Load(FreeImage_GetFileType(this->filePath.c_str(), 0), this->filePath.c_str());
+		FIBITMAP* img = FreeImage_ConvertToRGBAF(tempImg);
+		//FreeImage_Unload(tempImg);
+		this->originalHeightMap = img;
+
+		generateTerrainForFinalOutput(img);
+	}
 }
 
 inline void Terrain::AppendNormal(std::vector <GLfloat> & a, const glm::vec3 n, const int & i, const int & j, const int & rows, const int & cols, std::vector <int> & weights) {
@@ -596,6 +804,151 @@ inline void Terrain::setScale(glm::vec3 scale) {
 
 inline glm::vec3 Terrain::getScale() {
 	return this->scale;
+}
+
+inline glm::vec4 Terrain::processVoxelCell(int i, int j) {
+	std::vector<Voxel*> cellVoxels = voxelMap[i][j];
+
+	glm::vec4 layerHeights = glm::vec4(0, 0, 0, 0);
+
+	int previousLayerMeasuredIndex = 0;
+	int currentLayerMeasuredIndex = 0;
+	int currentLayerHeight = 0;
+
+	for (int k = 0; k < cellVoxels.size(); k++) {
+		if (currentLayerMeasuredIndex == 0) {
+			if (cellVoxels[k]->materialId == 2) { //when air layer is found
+				previousLayerMeasuredIndex = 0;
+				currentLayerMeasuredIndex = 1;
+			}
+			else {
+				currentLayerHeight++;
+			}
+		}
+		if (currentLayerMeasuredIndex == 1) {
+			if (previousLayerMeasuredIndex == 0) {
+				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+				previousLayerMeasuredIndex = 1;
+				currentLayerHeight = 1;
+			}
+			else {
+				if (cellVoxels[k]->materialId == 0) {	//when solid material is found again
+					previousLayerMeasuredIndex = 1;
+					currentLayerMeasuredIndex = 2;
+				}
+				else {
+					currentLayerHeight++;
+				}
+			}
+		}
+		if (currentLayerMeasuredIndex == 2) {
+			if (previousLayerMeasuredIndex == 1) {
+				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+				previousLayerMeasuredIndex = 2;
+				currentLayerHeight = 1;
+			}
+			else {
+				if (cellVoxels[k]->materialId == 2) {	//when air material is found again then end it
+					layerHeights[currentLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+					previousLayerMeasuredIndex = 2;
+					currentLayerMeasuredIndex = 3;
+					break;
+				}
+				else {
+					currentLayerHeight++;
+				}
+			}
+		}
+	}
+	
+	if (currentLayerMeasuredIndex == 0) {	//in case no air layers were found
+		layerHeights[0] = (currentLayerHeight / (float)maxVoxelCount);
+	}
+
+	return layerHeights;
+}
+
+inline void Terrain::exportOutput(FIBITMAP* img, const char * outputFileName) {
+	FreeImage_Initialise();
+
+	img = FreeImage_Allocate(512, 256, 32);
+
+	int bytespp = FreeImage_GetLine(img) / FreeImage_GetWidth(img);
+	int originalBytespp = FreeImage_GetLine(originalHeightMap) / FreeImage_GetWidth(originalHeightMap);
+	int complexBytespp = FreeImage_GetLine(complexImage) / FreeImage_GetWidth(complexImage);
+
+	for (int i = 0; i < 256; i++)
+	{
+		/*BYTE* complexColumnVector = FreeImage_GetScanLine(complexImage, i);
+		BYTE* columnVector = FreeImage_GetScanLine(originalHeightMap, i);
+		*/
+
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(originalHeightMap, i);
+		FIRGBAF* complexColumnVector = (FIRGBAF*)FreeImage_GetScanLine(complexImage, i);
+
+		BYTE* color = FreeImage_GetScanLine(img, i);
+
+		for (int j = 0; j < 512; j++)
+		{
+			if (j < 256)
+			{
+				//write original image with heightmap and complex image blended in r,g,b channels
+				color[FI_RGBA_RED] = int(columnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED];
+				color[FI_RGBA_GREEN] = int(complexColumnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED];// ;
+				color[FI_RGBA_BLUE] = int(complexColumnVector[j].green * 255.0f);//columnVector[FI_RGBA_RED];// ;
+				color[FI_RGBA_ALPHA] = 255;
+			}
+			else
+			{
+				glm::vec4 layerHeights = processVoxelCell(i, j - 256);
+				//Convert the output from voxel to layers
+				color[FI_RGBA_RED] = int(layerHeights.r * 255);
+				color[FI_RGBA_GREEN] = int(layerHeights.g * 255);
+				color[FI_RGBA_BLUE] = int(layerHeights.b * 255);
+				color[FI_RGBA_ALPHA] = 255;
+			}
+
+			color += bytespp;
+			//columnVector += originalBytespp;
+			//complexColumnVector += complexBytespp;
+		}
+	}
+
+	/*
+	img = FreeImage_AllocateT(FIT_RGBAF, 256, 256, 128);
+
+	for (int i = 0; i < 256; i++)
+	{
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(originalHeightMap, i);
+		FIRGBAF* complexColumnVector = (FIRGBAF*)FreeImage_GetScanLine(complexImage, i);
+		FIRGBAF* color = (FIRGBAF*)FreeImage_GetScanLine(img, i);
+
+		for (int j = 0; j < 256; j++)
+		{
+			if (j < 256)
+			{
+				//write original image with heightmap and complex image blended in r,g,b channels
+				color[j].red = columnVector[j].red;
+				color[j].green = columnVector[j].red;// complexColumnVector[j].red;
+				color[j].blue = columnVector[j].red;// complexColumnVector[j].green;
+				color[j].alpha = 255;
+			}
+			else
+			{
+				glm::vec4 layerHeights = processVoxelCell(i, j - 256);
+				//Convert the output from voxel to layers
+				color[j].red = layerHeights.r;
+				color[j].green = layerHeights.g;
+				color[j].blue = layerHeights.b;
+				color[j].alpha = 255;
+			}
+		}
+	}*/
+
+	//img = FreeImage_ConvertTo32Bits(img);
+	FreeImage_Save(FIF_PNG, img, outputFileName, 0);
+	FreeImage_Save(FIF_PNG, originalHeightMap, "HeightMap_O_Test.png", 0);
+	FreeImage_Save(FIF_PNG, complexImage, "ComplexMap_O_Test.png", 0);
 }
 
 /* Code from Rules TB Surface*/
