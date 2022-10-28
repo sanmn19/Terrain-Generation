@@ -28,8 +28,6 @@ static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
-static const std::string mesh_name = "Amago0.obj";
-//static const std::string texture_name = "AmagoT.bmp";
 static const std::string texture_name = "HeightMap2.png";
 static const std::string complex_features_map_name = "Complex.png";
 
@@ -43,6 +41,8 @@ float angle = -2.841f;
 float scale[3] = { 1, 1, 1 };
 float aspect = 1.0f;
 float lightDir[3];
+int renderMode = 0;
+bool updateErosion = false;
 
 float x = 0;
 float y = 3.697;
@@ -113,18 +113,32 @@ void draw_gui(GLFWwindow* window)
    }
 
    if (ImGui::Button("Process Terrains for training")) {
-       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f);
+       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
        terrain->generateTerrain();
        instanceToRender = terrain->instancesToRender;
    }
 
    if (ImGui::Button("Process Terrains for final output")) {
-       terrain = new Terrain(false, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f);
+       terrain = new Terrain(false, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, renderMode);
        terrain->generateTerrain();
        instanceToRender = terrain->instancesToRender;
    }
 
    if (terrain != nullptr) {
+       const char * completionString = (terrain->hasThermalErosionCompleted ? "terrain rendering done" : "terrain rendering in progress");
+       ImGui::Text(completionString);
+       if (ImGui::Checkbox("Update Mesh After Erosion", &updateErosion)) {
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
+       }
+       if (ImGui::Button("Thermal Erosion")) {
+           terrain->performThermalErosion(1);
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
+       }
+       
        if (terrain->forTraining) {
            if (ImGui::Button("Export Image")) {
                 FIBITMAP* exportImage = nullptr;
@@ -132,9 +146,13 @@ void draw_gui(GLFWwindow* window)
            }
        }
        else {
-            if (ImGui::Button("Export as OBJ")) {
+           if (ImGui::SliderInt("Render Mode", &renderMode, 0, 1)) {
+               terrain->setRenderMode(renderMode);
+           }
+
+           if (ImGui::Button("Export as OBJ")) {
                 
-            }
+           }
        }
    }
 
@@ -295,8 +313,6 @@ void initOpenGL()
     #endif
 
    reload_shader();
-   //mesh_data = LoadMesh(mesh_name);
-   //texture_id = LoadTexture(texture_name);
 }
 
 //C++ programs start executing in the main() function.

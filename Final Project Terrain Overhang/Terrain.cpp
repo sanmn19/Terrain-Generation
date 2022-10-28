@@ -8,6 +8,7 @@
 #include "LoadTexture.h"
 #include <iostream>
 #include "ShaderLocs.h"
+#include <cmath>
 
 #define RESTART_PRIMITIVE_CODE 0xffffffff
 
@@ -95,15 +96,21 @@ class Terrain {
 	FIBITMAP* complexImage;
 	bool renderMode = 0; //0 = Voxel 1 = Mesh
 
+	void thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
+	float getAngleOfTalus(float height, float verticalDifference);
+	int movedVoxelCount = 0;
+
 public:
 
+	bool isThermalErosionInProgress = false;
+	bool hasThermalErosionCompleted = false;
 	bool forTraining = true;
 
 	class Voxel {
 	public:
+		//glm::vec3 velocity;
 		double angleOfTalus;
 		int materialId;
-		glm::vec3 velocity;
 	};
 
 	int instancesToRender;
@@ -113,9 +120,10 @@ public:
 	std::vector <unsigned int> indexArray;
 	glm::mat4 modelMatrix;
 	double voxelDimension;
+	double voxelDimensionVertical;
 
 	Terrain() = default;
-	Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, bool renderMode);
+	Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, int renderMode);
 
 	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3]);
 
@@ -139,6 +147,9 @@ public:
 	std::vector<GLuint> createModelMatrixBuffers(int rowSize, int columnSize, bool createBuffer = true);
 
 	void SaveOBJ(std::vector<char> filename);
+
+	void performThermalErosion(int steps);
+	void updateTerrain();
 
 	std::vector<std::vector<FIRGBAF*>> convolution(FIBITMAP* img);
 };
@@ -171,7 +182,7 @@ inline void Terrain::setRenderMode(int renderMode) {
 	this->renderMode = renderMode;
 }
 
-inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string& complexFilePath, glm::vec3 scale, double voxelDimension = 1.0, bool renderMode) {
+inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string& complexFilePath, glm::vec3 scale, double voxelDimension = 1.0, int renderMode = 0) {
 	this->forTraining = forTraining;
 	setRenderMode(renderMode);
 	this->position = position;
@@ -179,16 +190,16 @@ inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string 
 	this->complexFilePath = complexFilePath;
 	this->scale = scale;
 	this->voxelDimension = voxelDimension;
+	this->voxelDimensionVertical = voxelDimension / 3;
 
 	num_indices = boxIndices.size();
 	indexCount = num_indices;
 
-	//generateTerrain();
 	glGenVertexArrays(1, &vertexArrayObject);
 	glGenBuffers(1, &vertexAndNormalbuffer);
 	glGenBuffers(1, &index_buffer);
 
-	maxVoxelCount = 1 / voxelDimension;
+	maxVoxelCount = 1 / voxelDimensionVertical;
 
 	FreeImage_Initialise();
 }
@@ -460,9 +471,9 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 		{
 			for (int k = 0; k < voxelMap[i][j].size(); k++)
 			{
-				glm::vec3 tran = glm::vec3(i * voxelDimension, k * voxelDimension, j * voxelDimension);
+				glm::vec3 tran = glm::vec3(i * voxelDimension, k * voxelDimensionVertical, j * voxelDimension);
 				glm::mat4 trans = glm::translate(glm::mat4(1.f), tran);
-				trans = glm::scale(trans, glm::vec3(voxelDimension, voxelDimension, voxelDimension));
+				trans = glm::scale(trans, glm::vec3(voxelDimension, voxelDimensionVertical, voxelDimension));
 				if (voxelMap[i][j][k]->materialId == 0) {
 					matrix_data_solid->push_back(trans);
 					colors->push_back(glm::vec4(1, 1, 1, 1));
@@ -498,6 +509,9 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 		glBufferData(GL_ARRAY_BUFFER, matrix_data_eroded->size() * sizeof(glm::mat4), matrix_data_eroded->data(), GL_DYNAMIC_DRAW);
 		model_matrix_buffers.push_back(erodedMaterialBuffer);*/
 	}
+
+	delete colors;
+	delete matrix_data_solid;
 
 	return model_matrix_buffers;
 }
@@ -548,7 +562,7 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 		glBindVertexArray(0); //unbind the vao
 	}
 	else if (renderMode == 1) {
-		//should I use ray marching?
+		//should I use marching cubes algo? I think yes TODO
 	}
 }
 
@@ -583,7 +597,7 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 		for (int j = 0; j < columnSize; j = j + 1) {
 			//std::cout << "i j " << i << " " << j << std::endl;
 			float height = columnVector[j].red;
-			float voxelCount = height / voxelDimension;
+			float voxelCount = height / voxelDimensionVertical;
 
 			std::vector<Voxel*> rowColumnVoxels;
 
@@ -617,7 +631,7 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 			float looseMaterialStart = -1;
 			int complexFeatureFoundCode = 0;
 
-			float height = voxelMap[i][j].size() * voxelDimension;
+			float height = voxelMap[i][j].size() * voxelDimensionVertical;
 
 			if (overHangValue > 0) {	//Overhangs override caves
 				looseMaterialHeight = (overHangValue) * 0.7f * height;
@@ -633,18 +647,20 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 				idx++;
 			}
 
-			int startVoxel = int(looseMaterialStart / voxelDimension);
-			int endVoxel = int((looseMaterialStart + looseMaterialHeight) / voxelDimension);
+			int startVoxel = int(looseMaterialStart / voxelDimensionVertical);
+			int endVoxel = int((looseMaterialStart + looseMaterialHeight) / voxelDimensionVertical);
 
 			for (int k = 0; k < voxelMap[i][j].size(); k++) {
 				if (k >= startVoxel && k <= endVoxel)
 				{
 					voxelMap[i][j][k]->materialId = 1;
+					voxelMap[i][j][k]->angleOfTalus = 30;
 					//Assign other properties like angle of talus
 				}
 				else
 				{
 					voxelMap[i][j][k]->materialId = 0;
+					voxelMap[i][j][k]->angleOfTalus = 45;
 				}
 			}
 
@@ -670,9 +686,9 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 			float baseRockHeight = columnVector[j].red;
 			float airLayerHeight = columnVector[j].green;
 			float overhangHeight = columnVector[j].blue;
-			float baseVoxelCount = (baseRockHeight) / voxelDimension;
-			float airVoxelCount = (airLayerHeight) / voxelDimension;
-			float overhangCount = (overhangHeight) / voxelDimension;
+			float baseVoxelCount = (baseRockHeight) / voxelDimensionVertical;
+			float airVoxelCount = (airLayerHeight) / voxelDimensionVertical;
+			float overhangCount = (overhangHeight) / voxelDimensionVertical;
 
 			std::vector<Voxel*> rowColumnVoxels;
 
@@ -753,6 +769,140 @@ inline void Terrain::generateTerrain() {
 		this->originalHeightMap = img;
 
 		generateTerrainForFinalOutput(img);
+	}
+}
+
+inline void Terrain::updateTerrain() {
+	generateRenderBuffers(voxelMap.size(), voxelMap[0].size());
+}
+
+inline void Terrain::thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume) {
+	float currentStackHeight = currentStack.size() * voxelDimensionVertical;	//TODO change to voxelDimension vertical for more accuracy of erosion.
+	float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
+
+	float heightDifference = (currentStackHeight - neighbourStackHeight);
+
+	if (heightDifference > 0) {
+		float angleOfTalus = getAngleOfTalus(heightDifference, voxelDimension);
+
+		bool allVoxelTransferred = false;
+		int index = currentStack.size() - 1;
+
+		float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
+		int voxels = volumeProportion / voxelDimensionVertical; //TODO add voxelDimension vertical for more accuracy.
+
+		while (!allVoxelTransferred && index >= 0 && voxels > 0) {
+			if (angleOfTalus > currentStack[index]->angleOfTalus) {
+				
+				//transfer 1 voxel every loop measuring angle of talus against top layer
+				movedVoxelCount++;
+				neighbourStack.push_back(currentStack[index]);
+				currentStack.erase(currentStack.end() - 1);
+				//TODO modify the material to have a velocity or change angle of talus to give the effect of accelerated movement downward
+
+				voxels--;
+
+				if (voxels <= 0) {
+					allVoxelTransferred = true;
+				}
+			}
+			else {
+				allVoxelTransferred = true;
+			}
+			index--;
+		}
+	}
+	
+}
+
+inline float Terrain::getAngleOfTalus(float height, float verticalDifference) {
+	float aTanAngleOfTalus = atan(height / verticalDifference);
+	float angleOfTalus = aTanAngleOfTalus * (180 / 3.14159f);
+
+	return angleOfTalus;
+}
+
+inline void Terrain::performThermalErosion(int steps = 10) {
+	movedVoxelCount = 0;
+	if (!isThermalErosionInProgress) {
+		isThermalErosionInProgress = true;
+		for (int s = 0; s < steps; s++) {
+			std::cout << "Step " << s << " in progress" << std::endl;
+			for (int i = 0; i < voxelMap.size(); i++) {
+				//std::cout << "i " << i << std::endl;
+				for (int j = 0; j < voxelMap[i].size(); j++) {
+					//for (int k = 0; k < voxelMap[i][j].size(); k++) {
+					int xStart = 0;
+					int xEnd = 3;
+					int yStart = 0;
+					int yEnd = 3;
+					if (i == 0) {
+						xStart = 1;
+					}
+					else if (i == voxelMap.size() - 1) {
+						xEnd = 2;
+					}
+
+					if (j == 0) {
+						yStart = 1;
+					}
+					else if (j == voxelMap[i].size() - 1) {
+						yEnd = 2;
+					}
+
+					float maximumHeightDifference = 0;
+					float sumOfHeights = 0;
+
+					for (int x = xStart; x < xEnd; x++) {
+						for (int y = yStart; y < yEnd; y++) {
+							if (x == 1 && y == 1) {
+								continue;
+							}
+
+							std::vector<Voxel*> & neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+							std::vector<Voxel*> & currentStack = voxelMap[i][j];
+
+							float currentStackHeight = currentStack.size() * voxelDimensionVertical;	//TODO change to voxelDimension vertical for more accuracy of erosion.
+							float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
+
+							float heightDifference = (currentStackHeight - neighbourStackHeight);
+
+							if (heightDifference > 0) {
+								if (heightDifference > maximumHeightDifference) {
+									maximumHeightDifference = heightDifference;
+								}
+
+								float angleOfTalus = getAngleOfTalus(heightDifference, voxelDimension);
+
+								if (angleOfTalus > currentStack[currentStack.size() - 1]->angleOfTalus) {
+									sumOfHeights += heightDifference;
+								}
+							}
+						}
+					}
+
+					if (sumOfHeights != 0) {
+						float maxVolume = maximumHeightDifference / 2;	//TODO what is the parameter in aH/2 defined by Benes
+
+						for (int x = xStart; x < xEnd; x++) {
+							for (int y = yStart; y < yEnd; y++) {
+								if (x == 1 && y == 1) {
+									continue;
+								}
+								std::vector<Voxel*> & neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+								std::vector<Voxel*> & currentStack = voxelMap[i][j];
+								thermalErosionCell(currentStack, neighbourStack, maximumHeightDifference, sumOfHeights, maxVolume);
+							}
+						}
+					}
+					//}
+				}
+			}
+		}
+
+		std::cout << "Total voxels moved " << movedVoxelCount<<std::endl;
+		isThermalErosionInProgress = false;
+		hasThermalErosionCompleted = true;
 	}
 }
 
