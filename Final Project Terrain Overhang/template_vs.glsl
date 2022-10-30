@@ -25,7 +25,12 @@ void main(void)
 	normal = (vec3(normalWorld.x, normalWorld.y, normalWorld.z));
 	//normal = vertexNormal_modelspace;
 	//lightDirect = normalize(lightDir);
-	colorOut = vec4(worldPosition.y * color.r, worldPosition.y * color.g, worldPosition.y * color.b, color.a);
+	if (color.b > 0.1 && color.r < 0.04) {
+		colorOut = vec4(color.r, color.g, color.b, color.a);
+	}
+	else {
+		colorOut = vec4(worldPosition.y * color.r, worldPosition.y * color.g, worldPosition.y * color.b, color.a);
+	}
 
 	gl_Position = PVM * model_matrix * vec4(pos_attrib, 1.0); //transform vertices and send result into pipeline
 }

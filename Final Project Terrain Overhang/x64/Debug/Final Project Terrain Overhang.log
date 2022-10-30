@@ -1,36 +1,160 @@
 ﻿  imgui_impl_dx10.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_dx10.cpp(31,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_dx11.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_dx11.cpp(32,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_dx9.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_dx9.cpp(33,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_glfw.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_glfw.cpp(49,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_opengl2.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_opengl2.cpp(38,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_opengl3.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_opengl3.cpp(90,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui_impl_win32.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\backends\imgui_impl_win32.cpp(15,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   imgui.cpp
   imgui_demo.cpp
   imgui_draw.cpp
   imgui_tables.cpp
   imgui_widgets.cpp
   imgui_stdlib.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\imgui-master\misc\cpp\imgui_stdlib.cpp(11,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
   DebugCallback.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\DebugCallback.h(4,10): fatal error C1083: Cannot open include file: 'GL/glew.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\DebugCallback.cpp(105,5): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\DebugCallback.cpp(118,5): warning C4267: 'argument': conversion from 'size_t' to 'DWORD', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\DebugCallback.cpp(117,5): warning C4996: 'itoa': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _itoa. See online help for details.
   InitShader.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\InitShader.cpp(1,10): fatal error C1083: Cannot open include file: 'GL/glew.h': No such file or directory
   LoadMesh.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\LoadMesh.h(7,10): fatal error C1083: Cannot open include file: 'GL/glew.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\LoadMesh.cpp(178,34): warning C4018: '<': signed/unsigned mismatch
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\quaternion.inl(207,15): warning C4244: '=': conversion from 'double' to 'TReal', possible loss of data
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\quaternion.inl(186): message : while compiling class template member function 'void aiQuaterniont<float>::Interpolate(aiQuaterniont<float> &,const aiQuaterniont<float> &,const aiQuaterniont<float> &,TReal)'
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\anim.h(435): message : see reference to function template instantiation 'void aiQuaterniont<float>::Interpolate(aiQuaterniont<float> &,const aiQuaterniont<float> &,const aiQuaterniont<float> &,TReal)' being compiled
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\anim.h(107): message : see reference to class template instantiation 'aiQuaterniont<float>' being compiled
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\quaternion.inl(208,14): warning C4244: '=': conversion from 'double' to 'TReal', possible loss of data
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\quaternion.inl(209,61): warning C4244: '=': conversion from 'double' to 'TReal', possible loss of data
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\quaternion.inl(210,33): warning C4244: '=': conversion from 'double' to 'TReal', possible loss of data
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\vector3.inl(93,13): warning C4244: 'return': conversion from 'double' to 'TReal', possible loss of data
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\vector3.inl(92): message : while compiling class template member function 'TReal aiVector3t<TReal>::Length(void) const'
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\vector3.inl(98): message : see reference to function template instantiation 'TReal aiVector3t<TReal>::Length(void) const' being compiled
+          with
+          [
+              TReal=float
+          ]
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\vector3.inl(142): message : while compiling class template member function 'bool aiVector3t<float>::operator ==(const aiVector3t<float> &) const'
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\anim.h(82): message : see reference to function template instantiation 'bool aiVector3t<float>::operator ==(const aiVector3t<float> &) const' being compiled
+D:\Purdue\Research\CGT 521 Fall 2022\include\assimp\types.h(150): message : see reference to class template instantiation 'aiVector3t<float>' being compiled
   LoadTexture.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\LoadTexture.h(6,10): fatal error C1083: Cannot open include file: 'GL/glew.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\LoadTexture.cpp(20,20): warning C4018: '<': signed/unsigned mismatch
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\LoadTexture.cpp(22,21): warning C4018: '<': signed/unsigned mismatch
   Main.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Main.cpp(3,10): fatal error C1083: Cannot open include file: 'imgui.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(117,14): warning C4240: nonstandard extension used: access to 'Terrain::Voxel' now defined to be 'public', previously it was defined to be 'private'
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(19): message : see declaration of 'Terrain::Voxel'
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(221,33): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(228,20): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(299,47): warning C4244: 'return': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(636,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(670,17): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(725,25): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(726,24): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(727,24): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(812,59): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(816,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(817,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(822,58): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(825,38): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(828,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(855,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(856,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(863,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(883,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(884,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(891,38): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(894,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(966,33): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(967,35): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(976,64): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1055,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1056,36): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1078,7): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1141,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1142,36): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1176,7): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1183,64): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1257,32): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1258,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1277,5): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Main.cpp(48,16): warning C4305: 'initializing': truncation from 'double' to 'float'
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Main.cpp(52,16): warning C4305: 'initializing': truncation from 'double' to 'float'
   Terrain.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1,10): fatal error C1083: Cannot open include file: 'GL/glew.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(117,14): warning C4240: nonstandard extension used: access to 'Terrain::Voxel' now defined to be 'public', previously it was defined to be 'private'
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(19): message : see declaration of 'Terrain::Voxel'
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(221,33): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(228,20): warning C4244: '=': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(299,47): warning C4244: 'return': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(636,21): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(670,17): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(725,25): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(726,24): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(727,24): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(812,59): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(816,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(817,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(822,58): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(825,38): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(828,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(855,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(856,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(863,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(883,27): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(884,29): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(891,38): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(894,14): warning C4244: 'initializing': conversion from 'double' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(966,33): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(967,35): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(976,64): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1055,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1056,36): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1078,7): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1141,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1142,36): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1176,7): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1183,64): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1257,32): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1258,34): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\Terrain.cpp(1277,5): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
   VideoMux.cpp
-D:\Purdue\OpenGL\CGT 521\Template Project 2\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.h(8,10): fatal error C1083: Cannot open include file: 'libavutil/avassert.h': No such file or directory
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(187,34): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(189,52): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(233,7): warning C4244: 'argument': conversion from 'double' to 'int64_t', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(264,38): warning C4244: '=': conversion from 'int64_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(288,10): warning C4996: 'avcodec_encode_audio2': was declared deprecated
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(389,7): warning C4244: 'argument': conversion from 'double' to 'int64_t', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(412,41): warning C4244: 'argument': conversion from 'int64_t' to 'int', possible loss of data
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(438,10): warning C4996: 'avcodec_encode_video2': was declared deprecated
   Generating Code...
+D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Final Project Terrain Overhang\VideoMux.cpp(532): warning C4700: uninitialized local variable 'audio_codec' used
+Amago0.obj : fatal error LNK1107: invalid or corrupt file: cannot read at 0x8CC51

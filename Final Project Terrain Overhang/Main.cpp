@@ -43,13 +43,15 @@ float aspect = 1.0f;
 float lightDir[3];
 int renderMode = 0;
 bool updateErosion = false;
+int steps = 1;
+bool addRain = true;
 
-float x = 0;
-float y = 3.697;
-float z = 5;
+float x = 2.282;
+float y = 10.059;
+float z = 9.045;
 
-float c1 = 0;
-float c2 = 0.84;
+float c1 = 2.113;
+float c2 = 0.085;
 float c3 = 0;
 
 bool recording = false;
@@ -132,8 +134,19 @@ void draw_gui(GLFWwindow* window)
                terrain->updateTerrain();
            }
        }
+
+       ImGui::SliderInt("Simulation Steps", &steps, 1, 100);
+       ImGui::Checkbox("Add Rain", &addRain);
+
        if (ImGui::Button("Thermal Erosion")) {
-           terrain->performThermalErosion(1);
+           terrain->performThermalErosion(steps);
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
+       }
+
+       if (ImGui::Button("Hydraulic Erosion")) {
+           terrain->performHydraulicErosion(steps, addRain);
            if (updateErosion) {
                terrain->updateTerrain();
            }
