@@ -103,7 +103,7 @@ class Terrain {
 
 	void thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
 	void transferSediment(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
-	void transferWater(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
+	bool transferWater(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
 	float getAngleOfTalus(float height, float verticalDifference);
 	void createNewRainVoxel(RainVoxel** rainVoxel, float waterQuantity);
 	int movedVoxelCount = 0;
@@ -131,26 +131,56 @@ public:
 	class RainVoxel : public Voxel {
 	public:
 		float waterQuantity = 1;
-		float sedimentVolume;
+		float sedimentFromGroundVolume = 0;
+		float sedimentVolume = 0;
 		std::vector<Voxel *> dissolvedGround;
-		float evaporatedAmount = 1;
+
+		float getSedimentRatio() {
+			float ratio = (sedimentVolume + sedimentFromGroundVolume) / waterQuantity;
+			return ratio;
+		}
 
 		bool evaporate() {
 			waterQuantity *= exp(-0.1f);
 			return waterQuantity <= 0.05f;
 		}
 
-		bool absorbSediment() {
+		bool absorbSedimentFromGround() {
+			return absorbSediment();
+			/*
+			float ratio = getSedimentRatio();
+			if (ratio < 0.3f) {
+				sedimentFromGroundVolume += 0.02f;
+				if (sedimentFromGroundVolume > 1) {		//TODO limit sediment volume absorbed by water while
+					sedimentFromGroundVolume -= 1;
+					return true;
+				}
+			}
 
-			sedimentVolume += 0.15f;
-			if (sedimentVolume > 1) {		//TODO limit sediment volume absorbed by water while
-				sedimentVolume -= 1;
-				return true;
-			}
-			else {
-				return false;
-			}
+			return false;*/
 		}
+
+		bool absorbSediment() {
+			float ratio = getSedimentRatio();
+			if (ratio < 0.8f) {
+				int previousSedimentVolume = (int)sedimentVolume;
+				sedimentVolume += 1.0f;
+				int diff = sedimentVolume - previousSedimentVolume;
+				if (diff >= 1) {		//TODO limit sediment volume absorbed by water while
+					return true;
+				}
+			}
+			
+			return false;
+		}
+
+		bool loseSediment() {
+			int previousSedimentVolume = (int)sedimentVolume;
+			sedimentVolume -= 1.0f;
+			int diff = sedimentVolume - previousSedimentVolume;
+			return diff >= 1;
+		}
+
 	};
 
 	int instancesToRender;
@@ -879,43 +909,53 @@ inline void Terrain::thermalErosionCell(std::vector<Voxel*>& currentStack, std::
 }
 
 inline void Terrain::transferSediment(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume) {
-	float currentStackHeight = currentStack.size() * voxelDimensionVertical;
-	float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
+	RainVoxel* currentRainVoxel = (RainVoxel*)currentStack[currentStack.size() - 1];
+
+	float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
+	float neighbourStackHeight = 0;
+
+	if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
+		RainVoxel* neighbourRainVoxel = (RainVoxel*)neighbourStack[neighbourStack.size() - 1];
+		neighbourStackHeight = ((neighbourStack.size() - 1) * voxelDimensionVertical) + (neighbourRainVoxel->waterQuantity * voxelDimensionVertical);
+	}
+	else {
+		neighbourStackHeight = (neighbourStack.size()) * voxelDimensionVertical;
+	}
 
 	float heightDifference = (currentStackHeight - neighbourStackHeight);
 
 	if (heightDifference > 0) {
-
 		float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
 		int voxels = volumeProportion / voxelDimensionVertical;
 
 		RainVoxel* neighbourVoxel = (RainVoxel *) neighbourStack[neighbourStack.size() - 1];
-		RainVoxel* currentVoxel = (RainVoxel*)currentStack[currentStack.size() - 1];
-		std::vector<Voxel *>& currentDissolvedGround = currentVoxel->dissolvedGround;
+		std::vector<Voxel *>& currentDissolvedGround = currentRainVoxel->dissolvedGround;
 		std::vector<Voxel*>& neighbourDissolvedGround = neighbourVoxel->dissolvedGround;
 
 		while (voxels > 0 && currentDissolvedGround.size() > 0) {
-			//transfer 1 rain voxel every loop measuring angle of talus against top layer
-			neighbourDissolvedGround.push_back(currentDissolvedGround[currentDissolvedGround.size() - 1]);
-			currentDissolvedGround.erase(currentDissolvedGround.end() - 1);
-			//TODO modify the material to have a velocity or change angle of talus to give the effect of accelerated movement downward
+
+			bool neighbourSediment = neighbourVoxel->absorbSediment();
+
+			if (neighbourSediment) {
+				bool currentSediment = currentRainVoxel->loseSediment();
+				neighbourDissolvedGround.push_back(currentDissolvedGround[currentDissolvedGround.size() - 1]);
+				currentDissolvedGround.erase(currentDissolvedGround.end() - 1);
+			}
 
 			voxels--;
 		}
 	}
-
 }
 
 inline void Terrain::createNewRainVoxel(RainVoxel ** rainVoxel, float waterQuantity = 1) {
 	*rainVoxel = new RainVoxel();
 	(*rainVoxel)->materialId = 3; 
 	(*rainVoxel)->sedimentVolume = 0;
-	(*rainVoxel)->evaporatedAmount = 1;
 	(*rainVoxel)->waterQuantity = waterQuantity;
 	rainVoxelCreated++;
 }
 
-inline void Terrain::transferWater(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume) {
+inline bool Terrain::transferWater(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume) {
 	RainVoxel * currentRainVoxel = (RainVoxel *)currentStack[currentStack.size() - 1];
 
 	float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
@@ -932,14 +972,9 @@ inline void Terrain::transferWater(std::vector<Voxel*>& currentStack, std::vecto
 	float heightDifference = (currentStackHeight - neighbourStackHeight);
 
 	if (heightDifference > 0) {
-
-		bool allVoxelTransferred = false;
-		int index = currentStack.size() - 1;
-
 		float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
 		float voxels = volumeProportion / voxelDimensionVertical;
 
-		RainVoxel* currentTopRainVoxel = (RainVoxel*) currentStack[currentStack.size() - 1];
 		RainVoxel* neighbourTopRainVoxel = nullptr;
 
 		if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
@@ -953,18 +988,20 @@ inline void Terrain::transferWater(std::vector<Voxel*>& currentStack, std::vecto
 
 		neighbourTopRainVoxel->waterQuantity = neighbourTopRainVoxel->waterQuantity + voxels;
 		
-		if (currentTopRainVoxel->waterQuantity < voxels) {
-			for (int dg = 0; dg < currentTopRainVoxel->dissolvedGround.size(); dg++) {
-				neighbourTopRainVoxel->dissolvedGround.push_back(currentTopRainVoxel->dissolvedGround[dg]);
+		if (currentRainVoxel->waterQuantity < voxels) {
+			for (int dg = 0; dg < currentRainVoxel->dissolvedGround.size(); dg++) {
+				neighbourTopRainVoxel->dissolvedGround.push_back(currentRainVoxel->dissolvedGround[dg]);
 			}
-			delete currentTopRainVoxel;
+			delete currentRainVoxel;
 			currentStack.erase(currentStack.end() - 1);
+			return true;
 		}
 		else {
-			currentTopRainVoxel->waterQuantity -= voxels;
+			currentRainVoxel->waterQuantity -= voxels;
 		}
 	}
 
+	return false;
 }
 
 inline float Terrain::getAngleOfTalus(float height, float verticalDifference) {
@@ -1097,184 +1134,151 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 						
 						RainVoxel* currentRainVoxel = (RainVoxel*)voxelMap[i][j][voxelMap[i][j].size() - 1];
 						
-						for (int x = xStart; x < xEnd; x++) {
-							for (int y = yStart; y < yEnd; y++) {
-								if (x == 1 && y == 1) {
-									continue;
-								}
-
-								std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-								std::vector<Voxel*>& currentStack = voxelMap[i][j];
-
-								float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
-								
-								float neighbourStackHeight = 0;
-								
-								if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-									RainVoxel* neighbourRainVoxel = (RainVoxel*)neighbourStack[neighbourStack.size() - 1];
-									neighbourStackHeight = ((neighbourStack.size() - 1) * voxelDimensionVertical) + (neighbourRainVoxel->waterQuantity * voxelDimensionVertical); //Experimenting with just ground levels
-								}
-								else {
-									continue;
-								}
-
-								float heightDifference = (currentStackHeight - neighbourStackHeight);
-
-								if (heightDifference > 0) {
-									if (currentRainVoxel->dissolvedGround.size() != 0 && neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-										if (heightDifference > sedimentMaximumHeightDifference) {
-											sedimentMaximumHeightDifference = heightDifference;
+						for (int repetition = 0; repetition < 20; repetition++) {
+							if (currentRainVoxel != nullptr) {
+								//Sediment redistribution
+								for (int x = xStart; x < xEnd; x++) {
+									for (int y = yStart; y < yEnd; y++) {
+										if (x == 1 && y == 1) {
+											continue;
 										}
 
-										sedimentSumOfHeights += heightDifference;
-									}
-								}
-							}
-						}
+										std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+										std::vector<Voxel*>& currentStack = voxelMap[i][j];
 
-						float sedimentMaxVolume = sedimentMaximumHeightDifference;
-						
-						if (sedimentSumOfHeights > 0) {
-							//evaporation and sediment, water transport simulation
-							for (int k = voxelMap[i][j].size() - 1; k >= 0; k--)
-							{
-								if (voxelMap[i][j][k]->materialId != 3) {
-									break;
-								}
+										float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
 
-								RainVoxel* topRainVoxel = ((RainVoxel*)voxelMap[i][j][k]);
+										float neighbourStackHeight = 0;
 
-								if (topRainVoxel->evaporate()) {
-									rainVoxelEvaporated++;
-									if (topRainVoxel->dissolvedGround.size() != 0) {
-										if (sedimentSumOfHeights == 0) {	//if no surrounding lower level rain voxels are found
-											if (k == 0 || voxelMap[i][j][k - 1]->materialId != 3) {	//If no rain water pixel found in lower levels
-												for (int dg = 0; dg < topRainVoxel->dissolvedGround.size(); dg++) {
-													voxelMap[i][j].insert(voxelMap[i][j].end() - 1, topRainVoxel->dissolvedGround[dg]);	//not using k because we remove the index
-												}
-											}
-											else {		//Transfer sediments to lower layers
-												RainVoxel* rainVoxelLower = ((RainVoxel*)voxelMap[i][j][k - 1]);
-												for (int dg = 0; dg < topRainVoxel->dissolvedGround.size(); dg++) {
-													rainVoxelLower->dissolvedGround.push_back(topRainVoxel->dissolvedGround[dg]);
-												}
-											}
+										if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
+											RainVoxel* neighbourRainVoxel = (RainVoxel*)neighbourStack[neighbourStack.size() - 1];
+											neighbourStackHeight = ((neighbourStack.size() - 1) * voxelDimensionVertical) + (neighbourRainVoxel->waterQuantity * voxelDimensionVertical); //Experimenting with just ground levels
 										}
 										else {
-											for (int x = xStart; x < xEnd; x++) {
-												for (int y = yStart; y < yEnd; y++) {
-													if (x == 1 && y == 1) {
-														continue;
-													}
-													std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-													std::vector<Voxel*>& currentStack = voxelMap[i][j];
+											continue;
+										}
 
-													if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-														transferSediment(currentStack, neighbourStack, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume);
-													}
+										float heightDifference = (currentStackHeight - neighbourStackHeight);
+
+										if (heightDifference > 0) {
+											if (currentRainVoxel->dissolvedGround.size() != 0 && neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
+												if (heightDifference > sedimentMaximumHeightDifference) {
+													sedimentMaximumHeightDifference = heightDifference;
+												}
+
+												sedimentSumOfHeights += heightDifference;
+											}
+										}
+									}
+								}
+
+								float sedimentMaxVolume = sedimentMaximumHeightDifference;
+
+								if (sedimentSumOfHeights > 0) {
+									for (int x = xStart; x < xEnd; x++) {
+										for (int y = yStart; y < yEnd; y++) {
+											if (x == 1 && y == 1) {
+												continue;
+											}
+											std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+											std::vector<Voxel*>& currentStack = voxelMap[i][j];
+
+											if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
+												transferSediment(currentStack, neighbourStack, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume);
+											}
+										}
+									}
+								}
+
+								//Water transport
+
+								float maximumHeightDifference = 0;
+								float sumOfHeights = 0;
+
+								for (int x = xStart; x < xEnd; x++) {
+									for (int y = yStart; y < yEnd; y++) {
+										if (x == 1 && y == 1) {
+											continue;
+										}
+
+										std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+										std::vector<Voxel*>& currentStack = voxelMap[i][j];
+
+										float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
+
+										float neighbourStackHeight = 0;
+
+										if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
+											RainVoxel* neighbourRainVoxel = (RainVoxel*)neighbourStack[neighbourStack.size() - 1];
+											neighbourStackHeight = ((neighbourStack.size() - 1) * voxelDimensionVertical) + (neighbourRainVoxel->waterQuantity * voxelDimensionVertical); //Experimenting with just ground levels
+										}
+										else {
+											neighbourStackHeight = (neighbourStack.size()) * voxelDimensionVertical;
+										}
+
+										float heightDifference = (currentStackHeight - neighbourStackHeight);
+
+										if (heightDifference > 0) {
+											if (heightDifference > maximumHeightDifference) {
+												maximumHeightDifference = heightDifference;
+											}
+
+											sumOfHeights += heightDifference;
+										}
+									}
+								}
+
+								float maxVolume = maximumHeightDifference;
+								//std::cout << "processing " << i << " " << j << std::endl;
+
+								if (sumOfHeights > 0) {
+									for (int x = xStart; x < xEnd; x++) {
+										for (int y = yStart; y < yEnd; y++) {
+											if (x == 1 && y == 1) {
+												continue;
+											}
+											std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+											std::vector<Voxel*>& currentStack = voxelMap[i][j];
+
+											if (currentStack.size() != 0 && currentStack[currentStack.size() - 1]->materialId == 3) {
+												if (transferWater(currentStack, neighbourStack, maximumHeightDifference, sumOfHeights, maxVolume)) {
+													currentRainVoxel = nullptr;
 												}
 											}
 										}
 									}
-
-									delete topRainVoxel;
-									voxelMap[i][j].erase(voxelMap[i][j].end() - 1);		//TODO make sure the pointer is derefenced correctly
-								}
-								else {
-									break;
-								}
-							}
-						}
-						
-
-						//Water transport
-
-						float maximumHeightDifference = 0;
-						float sumOfHeights = 0;
-
-						for (int x = xStart; x < xEnd; x++) {
-							for (int y = yStart; y < yEnd; y++) {
-								if (x == 1 && y == 1) {
-									continue;
 								}
 
-								std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-								std::vector<Voxel*>& currentStack = voxelMap[i][j];
-
-								float currentStackHeight = ((currentStack.size() - 1) * voxelDimensionVertical) + (currentRainVoxel->waterQuantity * voxelDimensionVertical);
-								
-								float neighbourStackHeight = 0;
-								
-								if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-									RainVoxel* neighbourRainVoxel = (RainVoxel*)neighbourStack[neighbourStack.size() - 1];
-									neighbourStackHeight = ((neighbourStack.size() - 1) * voxelDimensionVertical) + (neighbourRainVoxel->waterQuantity * voxelDimensionVertical); //Experimenting with just ground levels
-								}
-								else {
-									neighbourStackHeight = (neighbourStack.size()) * voxelDimensionVertical;
-								}
-
-								float heightDifference = (currentStackHeight - neighbourStackHeight);
-
-								if (heightDifference > 0) {
-									if (heightDifference > maximumHeightDifference) {
-										maximumHeightDifference = heightDifference;
-									}
-
-									sumOfHeights += heightDifference;
-								}
-							}
-						}
-
-						float maxVolume = maximumHeightDifference;
-						//std::cout << "processing " << i << " " << j << std::endl;
-						
-						if (sumOfHeights > 0) {
-							for (int x = xStart; x < xEnd; x++) {
-								for (int y = yStart; y < yEnd; y++) {
-									if (x == 1 && y == 1) {
-										continue;
-									}
-									std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-									std::vector<Voxel*>& currentStack = voxelMap[i][j];
-
-									if (currentStack.size() != 0 && currentStack[currentStack.size() - 1]->materialId == 3) {
-										transferWater(currentStack, neighbourStack, maximumHeightDifference, sumOfHeights, maxVolume);
+								if (currentRainVoxel != nullptr) {
+									//Sediment absorption from ground
+									if (voxelMap[i][j].size() > 1) {
+										if (currentRainVoxel->absorbSedimentFromGround()) {
+											Voxel* topNonWaterVoxel = voxelMap[i][j][voxelMap[i][j].size() - 2];
+											currentRainVoxel->dissolvedGround.push_back(topNonWaterVoxel);
+											voxelMap[i][j].erase(voxelMap[i][j].end() - 2);
+										}
 									}
 								}
 							}
 						}
 
-						/*
-						//Sediment absorption TODO
-						int topNonWaterIndexOffset = -1;
-						int topNonWaterIndex = -1;
-						int bottomWaterIndex = -1;
-
-						for (int k = voxelMap[i][j].size() - 1; k >= 0; k--) {
-							if (voxelMap[i][j][k]->materialId != 3) {
-								if (k == voxelMap[i][j].size() - 1) {
-									break;
-								} else if (k < voxelMap[i][j].size() - 1 && voxelMap[i][j][k + 1]->materialId == 3) {
-									bottomWaterIndex = k + 1;
-									topNonWaterIndex = k;
-									topNonWaterIndexOffset = voxelMap[i][j].size() - 1 - k;
-									break;
+						if (currentRainVoxel != nullptr) {
+							//evaporation -  Should be last since we delete currentRainVoxel
+							if (currentRainVoxel->evaporate()) {
+								rainVoxelEvaporated++;
+								if (currentRainVoxel->dissolvedGround.size() != 0) {
+									for (int dg = 0; dg < currentRainVoxel->dissolvedGround.size(); dg++) {
+										voxelMap[i][j].insert(voxelMap[i][j].end() - 1, currentRainVoxel->dissolvedGround[dg]);
+									}
 								}
+
+								delete currentRainVoxel;
+								voxelMap[i][j].erase(voxelMap[i][j].end() - 1);		//TODO make sure the pointer is derefenced correctly
 							}
 						}
-
-						if (topNonWaterIndexOffset != -1 && bottomWaterIndex != -1) {
-							RainVoxel* bottomRainVoxel = (RainVoxel *) voxelMap[i][j][bottomWaterIndex];
-							if (bottomRainVoxel->absorbSediment()) {
-								bottomRainVoxel->dissolvedGround.push_back(voxelMap[i][j][topNonWaterIndex]);
-								voxelMap[i][j].erase(voxelMap[i][j].end() - topNonWaterIndexOffset - 1);
-							}
-						}
-						*/
-
 					}
 
-					if (addRain)  {// || s < steps / 3) { //rains only for first half of steps to ensure that the sediments are transported
+					if (addRain || s < steps / 3) { //rains only for first half of steps to ensure that the sediments are transported
 						int rainAtStep = std::rand() % (rateOfRain + 1);
 
 						//Addition through Raining simulation
@@ -1290,12 +1294,12 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 								voxelMap[i][j].push_back(rainVoxel);
 							}
 
-							if (voxelMap[i][j].size() != 0) {
-								Voxel* topNonWaterVoxel = voxelMap[i][j][voxelMap[i][j].size() - 1];
-								/*if (topNonWaterVoxel->materialId != 3) {
+							if (voxelMap[i][j].size() > 1) {
+								Voxel* topNonWaterVoxel = voxelMap[i][j][voxelMap[i][j].size() - 2];
+								if (rainVoxel->absorbSedimentFromGround()) {
 									rainVoxel->dissolvedGround.push_back(topNonWaterVoxel);
-									voxelMap[i][j].erase(voxelMap[i][j].end() - 1);
-								}*/
+									voxelMap[i][j].erase(voxelMap[i][j].end() - 2);
+								}
 							}
 						}
 					}
@@ -1303,108 +1307,29 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 			}
 		}
 
-		/*
+		
 		//Force evaporate every rain voxel
 		for (int i = 0; i < voxelMap.size(); i++) {
 			//std::cout << "i " << i << std::endl;
 			for (int j = 0; j < voxelMap[i].size(); j++) {
 
-				float sedimentMaximumHeightDifference = 0;
-				float sedimentSumOfHeights = 0;
+				if (voxelMap[i][j].size() != 0 && voxelMap[i][j][voxelMap[i][j].size() - 1]->materialId == 3) {
 
-				int xStart = 0;
-				int xEnd = 3;
-				int yStart = 0;
-				int yEnd = 3;
-				if (i == 0) {
-					xStart = 1;
-				}
-				else if (i == voxelMap.size() - 1) {
-					xEnd = 2;
-				}
+					RainVoxel* currentRainVoxel = (RainVoxel*)voxelMap[i][j][voxelMap[i][j].size() - 1];
 
-				if (j == 0) {
-					yStart = 1;
-				}
-				else if (j == voxelMap[i].size() - 1) {
-					yEnd = 2;
-				}
-
-				for (int x = xStart; x < xEnd; x++) {
-					for (int y = yStart; y < yEnd; y++) {
-						if (x == 1 && y == 1) {
-							continue;
-						}
-
-						std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-						std::vector<Voxel*>& currentStack = voxelMap[i][j];
-
-						float currentStackHeight = currentStack.size() * voxelDimensionVertical;
-						float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
-
-						float heightDifference = (currentStackHeight - neighbourStackHeight);
-
-						if (heightDifference > 0) {// && ) {
-							RainVoxel* rainVoxel = (RainVoxel*)currentStack[currentStack.size() - 1];
-							if (rainVoxel->dissolvedGround.size() != 0 && neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-								if (heightDifference > sedimentMaximumHeightDifference) {
-									sedimentMaximumHeightDifference = heightDifference;
-								}
-
-								sedimentSumOfHeights += heightDifference;
-							}
-						}
-					}
-				}
-
-				float sedimentMaxVolume = sedimentMaximumHeightDifference / 2;
-
-				for (int k = voxelMap[i][j].size() - 1; k >= 0; k--)
-				{
-					if (voxelMap[i][j][k]->materialId != 3) {
-						break;
-					}
-
-					RainVoxel* topRainVoxel = ((RainVoxel*)voxelMap[i][j][k]);
-
+					//evaporation -  Should be last since we delete currentRainVoxel
 					rainVoxelEvaporated++;
-					if (topRainVoxel->dissolvedGround.size() != 0) {
-						if (sedimentSumOfHeights == 0) {	//if no surrounding lower level rain voxels are found
-							if (k == 0 || voxelMap[i][j][k - 1]->materialId != 3) {	//If no rain water pixel found in lower levels
-								for (int dg = 0; dg < topRainVoxel->dissolvedGround.size(); dg++) {
-									voxelMap[i][j].insert(voxelMap[i][j].end() - 1, topRainVoxel->dissolvedGround[dg]);	//not using k because we remove the index
-								}
-							}
-							else {		//Transfer sediments to lower layers
-								RainVoxel* rainVoxelLower = ((RainVoxel*)voxelMap[i][j][k - 1]);
-								for (int dg = 0; dg < topRainVoxel->dissolvedGround.size(); dg++) {
-									rainVoxelLower->dissolvedGround.push_back(topRainVoxel->dissolvedGround[dg]);
-								}
-							}
-						}
-						else {
-							for (int x = xStart; x < xEnd; x++) {
-								for (int y = yStart; y < yEnd; y++) {
-									if (x == 1 && y == 1) {
-										continue;
-									}
-									std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-									std::vector<Voxel*>& currentStack = voxelMap[i][j];
-
-									if (neighbourStack.size() != 0 && neighbourStack[neighbourStack.size() - 1]->materialId == 3) {
-										transferSediment(currentStack, neighbourStack, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume);
-									}
-								}
-							}
+					if (currentRainVoxel->dissolvedGround.size() != 0) {
+						for (int dg = 0; dg < currentRainVoxel->dissolvedGround.size(); dg++) {
+							voxelMap[i][j].insert(voxelMap[i][j].end() - 1, currentRainVoxel->dissolvedGround[dg]);
 						}
 					}
 
-					delete topRainVoxel;
+					delete currentRainVoxel;
 					voxelMap[i][j].erase(voxelMap[i][j].end() - 1);		//TODO make sure the pointer is derefenced correctly
 				}
 			}
 		}
-		*/
 
 		std::cout << "Total voxels moved " << movedVoxelCount << std::endl;
 		std::cout << "Total Rain Voxel created" << rainVoxelCreated << std::endl;
@@ -1412,6 +1337,7 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 		isHydraulicErosionInProgress = false;
 		hasHydraulicErosionCompleted = true;
 	}
+
 }
 
 inline void Terrain::AppendNormal(std::vector <GLfloat> & a, const glm::vec3 n, const int & i, const int & j, const int & rows, const int & cols, std::vector <int> & weights) {
