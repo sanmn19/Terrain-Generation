@@ -1641,7 +1641,31 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 								
 								
 								//Sediment absorption from sideways
-								
+								if (currentRainVoxel != nullptr) {
+									for (int x = xStart; x < xEnd; x++) {
+										for (int y = yStart; y < yEnd; y++) {
+											if (x == 1 && y == 1) {
+												continue;
+											}
+											std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+
+											for (int n = neighbourStack.size() - 1; n > 0; n--) {
+												if (neighbourStack[n]->materialId == 1 || neighbourStack[n]->materialId == 0) {
+													GroundVoxel* neighbourGroundVoxel = (GroundVoxel *)neighbourStack[n];
+													float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
+													float neighbourStackTopHeight = (neighbourStackBaseHeight + 1);
+
+													if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
+														int sedimentCount = currentRainVoxel->absorbSedimentFromGround(neighbourGroundVoxel->angleOfTalus);
+														for (int sedi = 0; sedi < sedimentCount; sedi++) {
+															transferSedimentFromSide(currentStack, currentRainVoxel, neighbourStack, neighbourGroundVoxel, n);
+														}
+													}
+												}
+											}
+										}
+									}
+								}
 								
 							}
 						}
@@ -1650,32 +1674,6 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 					for (int k = voxelMap[i][j].size() - 1; k >= 0 ; k--) {
 						if (voxelMap[i][j][k]->materialId == 3) {
 							RainVoxel* currentRainVoxel = (RainVoxel *)voxelMap[i][j][k];
-
-							if (currentRainVoxel != nullptr) {
-								for (int x = xStart; x < xEnd; x++) {
-									for (int y = yStart; y < yEnd; y++) {
-										if (x == 1 && y == 1) {
-											continue;
-										}
-										std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-
-										for (int n = neighbourStack.size() - 1; n > 0; n--) {
-											if (neighbourStack[n]->materialId == 1 || neighbourStack[n]->materialId == 0) {
-												GroundVoxel* neighbourGroundVoxel = (GroundVoxel*)neighbourStack[n];
-												float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
-												float neighbourStackTopHeight = (neighbourStackBaseHeight + 1);
-
-												if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
-													int sedimentCount = currentRainVoxel->absorbSedimentFromGround(neighbourGroundVoxel->angleOfTalus);
-													for (int sedi = 0; sedi < sedimentCount; sedi++) {
-														transferSedimentFromSide(currentStack, currentRainVoxel, neighbourStack, neighbourGroundVoxel, n);
-													}
-												}
-											}
-										}
-									}
-								}
-							}
 
 							//evaporation -  Should be last since we delete currentRainVoxel
 							if (currentRainVoxel->evaporate()) {
