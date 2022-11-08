@@ -29,7 +29,7 @@ static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
 static const std::string texture_name = "HeightMap4.png";
-static const std::string complex_features_map_name = "Complex.png";
+static const std::string complex_features_map_name = "Complex2.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
 //MeshData mesh_data;
