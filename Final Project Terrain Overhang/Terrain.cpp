@@ -963,7 +963,11 @@ inline void Terrain::transferSediment(RainVoxel* currentRainVoxel, RainVoxel* ne
 	std::vector<Voxel *>& currentDissolvedGround = currentRainVoxel->dissolvedGround;
 	std::vector<Voxel*>& neighbourDissolvedGround = neighbourVoxel->dissolvedGround;
 
-	float volumeProportion = currentDissolvedGround.size() * (heightDifference / sumOfHeights);
+	int currentDissolvedSize = currentDissolvedGround.size();
+	int neighbourDissolvedSize = neighbourDissolvedGround.size();
+
+	//float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
+	float volumeProportion = currentDissolvedSize * (heightDifference / sumOfHeights);
 	int voxels = volumeProportion / voxelDimensionVertical;
 
 	while (voxels > 0 && currentDissolvedGround.size() > 0) {
