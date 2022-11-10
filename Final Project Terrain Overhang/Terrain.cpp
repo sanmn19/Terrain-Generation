@@ -270,7 +270,7 @@ inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string 
 	this->complexFilePath = complexFilePath;
 	this->scale = scale;
 	this->voxelDimension = voxelDimension;
-	this->voxelDimensionVertical = voxelDimension / 2;
+	this->voxelDimensionVertical = voxelDimension;
 
 	num_indices = boxIndices.size();
 	indexCount = num_indices;
@@ -573,6 +573,9 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 					}
 					else if (voxel->materialId == 1) {
 						colors->push_back(glm::vec4(1, 0, 0, 1));
+					}
+					else {
+						std::cout << "something is wrong material id wrong " << voxel->materialId << std::endl;
 					}
 				}
 				else if (voxelMap[i][j][k]->materialId == 2) {
@@ -923,30 +926,64 @@ inline void Terrain::updateTerrain() {
 }
 
 inline void Terrain::thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume) {
-	float currentStackHeight = currentStack.size() * voxelDimensionVertical;
-	float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
+	float currentStackHeight = determineBaseHeight(currentStack, currentStack.size());
+	float neighbourStackHeight = determineBaseHeight(neighbourStack, neighbourStack.size());
 
 	float heightDifference = (currentStackHeight - neighbourStackHeight);
 
 	if (heightDifference > 0) {
-		float angleOfTalus = getAngleOfTalus(heightDifference, voxelDimension);
+		float angleOfTalus = getAngleOfTalus(heightDifference, 1);// voxelDimension);
 
 		bool allVoxelTransferred = false;
-		int index = currentStack.size() - 1;
 
 		float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
-		int voxels = volumeProportion / voxelDimensionVertical;
+		float voxels = volumeProportion;// / voxelDimensionVertical;
 
-		while (!allVoxelTransferred && index >= 0 && voxels > 0) {
-			if (angleOfTalus > ((GroundVoxel *)currentStack[index])->angleOfTalus) {
+		GroundVoxel* neighbourVoxel = nullptr;
+
+		if (neighbourStack.size() > 0 && (neighbourStack[neighbourStack.size() - 1]->materialId == 0 || neighbourStack[neighbourStack.size() - 1]->materialId == 1)) {
+			neighbourVoxel = (GroundVoxel*)neighbourStack[neighbourStack.size() - 1];
+		}
+		else {
+			neighbourVoxel = new GroundVoxel();
+			neighbourVoxel->height = 0;
+			neighbourVoxel->materialId = currentStack[currentStack.size() - 1]->materialId;
+			neighbourStack.push_back(neighbourVoxel);
+			instanceCount++;
+			instancesToRender = instanceCount;
+		}
+
+		while (!allVoxelTransferred && currentStack.size() > 0 && voxels > 0) {
+			if (angleOfTalus > ((GroundVoxel *)currentStack[currentStack.size() - 1])->angleOfTalus) {
 				
 				//transfer 1 voxel every loop measuring angle of talus against top layer
 				movedVoxelCount++;
-				neighbourStack.push_back(currentStack[index]);
-				currentStack.erase(currentStack.end() - 1);
+				
 				//TODO modify the material to have a velocity or change angle of talus to give the effect of accelerated movement downward
 
-				voxels--;
+				if (neighbourVoxel->materialId != currentStack[currentStack.size() - 1]->materialId) {
+					neighbourVoxel = new GroundVoxel();
+					neighbourVoxel->height = 0;
+					neighbourVoxel->materialId = currentStack[currentStack.size() - 1]->materialId;
+					neighbourStack.push_back(neighbourVoxel);
+					instanceCount++;
+					instancesToRender = instanceCount;
+				}
+
+				float finalVolumeToBeTransferred = 0;
+
+				if (currentStack[currentStack.size() - 1]->height < voxels) {
+					voxels -= currentStack[currentStack.size() - 1]->height;
+					finalVolumeToBeTransferred = currentStack[currentStack.size() - 1]->height;
+					currentStack.erase(currentStack.end() - 1);
+				}
+				else {
+					currentStack[currentStack.size() - 1]->height -= voxels;
+					finalVolumeToBeTransferred = voxels;
+					voxels = 0;
+				}
+
+				neighbourVoxel->height += finalVolumeToBeTransferred;
 
 				if (voxels <= 0) {
 					allVoxelTransferred = true;
@@ -955,7 +992,6 @@ inline void Terrain::thermalErosionCell(std::vector<Voxel*>& currentStack, std::
 			else {
 				allVoxelTransferred = true;	
 			}
-			index--;
 		}
 	}
 	
@@ -1135,12 +1171,16 @@ inline void Terrain::createNewRainVoxel(RainVoxel ** rainVoxel, float height = 1
 	(*rainVoxel)->sedimentVolume = 0;
 	(*rainVoxel)->height = height;
 	rainVoxelCreated++;
+	instanceCount++;
+	instancesToRender = instanceCount;
 }
 
 inline void Terrain::createNewAirVoxel(Voxel** airVoxel, float height = 1) {
 	*airVoxel = new Voxel();
 	(*airVoxel)->materialId = 2;
 	(*airVoxel)->height = height;
+	instanceCount++;
+	instancesToRender = instanceCount;
 }
 
 inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, std::vector<Voxel*>& neighbourStack, int neighbourIndex, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize) {
@@ -1289,8 +1329,8 @@ inline void Terrain::performThermalErosion(int steps = 10) {
 							std::vector<Voxel*> & neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
 							std::vector<Voxel*> & currentStack = voxelMap[i][j];
 
-							float currentStackHeight = currentStack.size() * voxelDimensionVertical;
-							float neighbourStackHeight = neighbourStack.size() * voxelDimensionVertical;
+							float currentStackHeight = determineBaseHeight(currentStack, currentStack.size());
+							float neighbourStackHeight = determineBaseHeight(neighbourStack, neighbourStack.size());
 
 							float heightDifference = (currentStackHeight - neighbourStackHeight);
 
@@ -1334,15 +1374,15 @@ inline void Terrain::performThermalErosion(int steps = 10) {
 }
 
 inline float Terrain::determineBaseHeight(std::vector<Voxel *> stack, int index) {
-	if (index > stack.size() - 1 || index < 0) {
+	if (index > stack.size() || index < 0) {
 		return -1;
 	}
 
 	float height = 0;
 
 	for (int k = 0; k < index; k++) {
-		Voxel* airVoxel = stack[k];
-		height += airVoxel->height;
+		Voxel* voxel = stack[k];
+		height += voxel->height;
 	}
 
 	return height;
