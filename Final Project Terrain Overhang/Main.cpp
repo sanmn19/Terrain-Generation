@@ -46,6 +46,7 @@ bool updateErosion = false;
 int steps = 1;
 bool addRain = true;
 int rateOfRain = 3;
+bool forceEvaporate = true;
 
 float x = 2.282;
 float y = 10.059;
@@ -137,19 +138,20 @@ void draw_gui(GLFWwindow* window)
        }
 
        ImGui::SliderInt("Simulation Steps", &steps, 1, 100);
-       ImGui::Checkbox("Add Rain", &addRain);
-
        if (ImGui::Button("Thermal Erosion")) {
            terrain->performThermalErosion(steps);
            if (updateErosion) {
                terrain->updateTerrain();
            }
        }
-
+       
+       
+       ImGui::Checkbox("Add Rain", &addRain);
        ImGui::SliderInt("Rate Of Rain", &rateOfRain, 0, 100);
+       ImGui::Checkbox("Force Evaporate", &forceEvaporate);
 
        if (ImGui::Button("Hydraulic Erosion")) {
-           terrain->performHydraulicErosion(steps, addRain, rateOfRain);
+           terrain->performHydraulicErosion(steps, addRain, rateOfRain, forceEvaporate);
            if (updateErosion) {
                terrain->updateTerrain();
            }
