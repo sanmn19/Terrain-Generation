@@ -2019,7 +2019,7 @@ inline void Terrain::evaporate(RainVoxel* currentRainVoxel, int & currentIndex, 
 		//delete[] & lostSediments; TODO use that vector swap thingy instead
 	}
 
-	if (sedimentsHeightToBeDeposited == maxSedimentVolume) {
+	if (sedimentsHeightToBeDeposited == maxSedimentVolume || forceEvaporate) {
 		rainVoxelEvaporated++;
 		delete currentRainVoxel;
 		voxelMap[i][j].erase(voxelMap[i][j].begin() + currentIndex);
