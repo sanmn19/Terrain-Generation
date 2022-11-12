@@ -26,7 +26,7 @@ void main(void)
 	normal = (vec3(normalWorld.x, normalWorld.y, normalWorld.z));
 	//normal = vertexNormal_modelspace;
 	//lightDirect = normalize(lightDir);
-	if (color.b > 0.1 && color.r < 0.04) {
+	if ((color.b > 0.1 && color.r < 0.04) || (color.g > 0.1 && color.r < 0.04)) {
 		colorOut = vec4(color.r, color.g, color.b, color.a);
 		colOut = colorOut;
 	}

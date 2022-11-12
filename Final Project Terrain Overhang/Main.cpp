@@ -28,7 +28,7 @@ static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
-static const std::string texture_name = "HeightMap3.png";
+static const std::string texture_name = "HeightMap5.png";
 static const std::string complex_features_map_name = "Complex2.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
@@ -47,6 +47,9 @@ int steps = 1;
 bool addRain = true;
 int rateOfRain = 3;
 bool forceEvaporate = true;
+
+int selectedRow = 0;
+int selectedColumn = 0;
 
 float x = 2.282;
 float y = 10.059;
@@ -155,6 +158,14 @@ void draw_gui(GLFWwindow* window)
            if (updateErosion) {
                terrain->updateTerrain();
            }
+       }
+
+       if (ImGui::SliderInt("I Axis", &selectedRow, 0, 255)) {
+           terrain->selectedI = selectedRow;
+       }
+       
+       if (ImGui::SliderInt("J Axis", &selectedColumn, 0, 255)) {
+           terrain->selectedJ = selectedColumn;
        }
        
        if (terrain->forTraining) {
