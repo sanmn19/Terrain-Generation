@@ -28,7 +28,7 @@ static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
-static const std::string texture_name = "HeightMap5.png";
+static const std::string texture_name = "HeightMap2.png";
 static const std::string complex_features_map_name = "Complex2.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
@@ -51,13 +51,23 @@ bool forceEvaporate = true;
 int selectedRow = 0;
 int selectedColumn = 0;
 
-float x = 2.282;
+/*float x = 2.282;
 float y = 10.059;
 float z = 9.045;
 
 float c1 = 2.113;
 float c2 = 0.085;
 float c3 = 0;
+*/
+
+float x = 1.031;
+float y = 1.031;
+float z = 1.375;
+
+float c1 = -0.687;
+float c2 = 0;
+float c3 = -0.344;
+
 
 bool recording = false;
 
