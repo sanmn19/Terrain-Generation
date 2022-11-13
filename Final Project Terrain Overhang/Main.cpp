@@ -28,8 +28,8 @@ static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
-static const std::string texture_name = "HeightMap2.png";
-static const std::string complex_features_map_name = "Complex2.png";
+static const std::string texture_name = "HeightMap10.png";
+static const std::string complex_features_map_name = "Complex3.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
 //MeshData mesh_data;
@@ -42,24 +42,29 @@ float scale[3] = { 1, 1, 1 };
 float aspect = 1.0f;
 float lightDir[3];
 int renderMode = 0;
-bool updateErosion = false;
+bool updateErosion = true;
 int steps = 1;
 bool addRain = true;
-int rateOfRain = 3;
-bool forceEvaporate = true;
+int rateOfRain = 20;
+bool forceEvaporate = false;
+bool sidewaysErosion = true;
+bool evaporationEnabled = true;
+bool waterFlowEnabled = true;
+bool absorbFromGround = true;
 
 int selectedRow = 0;
 int selectedColumn = 0;
 
-/*float x = 2.282;
+float x = 2.282;
 float y = 10.059;
 float z = 9.045;
 
 float c1 = 2.113;
 float c2 = 0.085;
 float c3 = 0;
-*/
 
+
+/*
 float x = 1.031;
 float y = 1.031;
 float z = 1.375;
@@ -67,7 +72,7 @@ float z = 1.375;
 float c1 = -0.687;
 float c2 = 0;
 float c3 = -0.344;
-
+*/
 
 bool recording = false;
 
@@ -168,6 +173,29 @@ void draw_gui(GLFWwindow* window)
            if (updateErosion) {
                terrain->updateTerrain();
            }
+       }
+
+       if (ImGui::Button("Hydraulic Erosion Preset1")) {
+           terrain->performHydraulicErosion(1, true, 20, false);
+           terrain->performHydraulicErosion(20, false, 1, true);
+           terrain->performHydraulicErosion(1, true, 20, false);
+           terrain->performHydraulicErosion(4, false, 1, true);
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
+       }
+
+       if (ImGui::Checkbox("Sideways Erosion", &sidewaysErosion)) {
+           terrain->setSidewaysErosion(sidewaysErosion);
+       }
+       if (ImGui::Checkbox("Evaporation", &evaporationEnabled)) {
+           terrain->setEvaporation(evaporationEnabled);
+       }
+       if (ImGui::Checkbox("Water Flow", &waterFlowEnabled)) {
+           terrain->setWaterFlow(waterFlowEnabled);
+       }
+       if (ImGui::Checkbox("Downward Erosion", &absorbFromGround)) {
+           terrain->setAbsorbWaterFromGround(absorbFromGround);
        }
 
        if (ImGui::SliderInt("I Axis", &selectedRow, 0, 255)) {
