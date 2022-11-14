@@ -10,6 +10,7 @@ layout(location = 8) in mat4 model_matrix;
 out vec3 normal;
 out vec3 posOut;
 out vec4 colorOut;
+flat out vec2 posBased;
 flat out vec4 colOut;
 
 uniform vec3 lightPos;
@@ -29,10 +30,12 @@ void main(void)
 	if ((color.b > 0.1 && color.r < 0.04) || (color.g > 0.1 && color.r < 0.04)) {
 		colorOut = vec4(color.r, color.g, color.b, color.a);
 		colOut = colorOut;
+		posBased = vec2(0, 0);
 	}
 	else {
 		colorOut = vec4(worldPosition.y * color.r, worldPosition.y * color.g, worldPosition.y * color.b, color.a);
 		colOut = color;
+		posBased = vec2(1, 0);
 	}
 
 	gl_Position = PVM * model_matrix * vec4(pos_attrib, 1.0); //transform vertices and send result into pipeline
