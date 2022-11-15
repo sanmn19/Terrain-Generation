@@ -7,5 +7,6 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LocalDebuggerEnvironment>PATH=%PATH%;$(SolutionDir)\lib;</LocalDebuggerEnvironment>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
+    <LocalDebuggerCommandArguments>"D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Heightmaps\HeightMap10.png"</LocalDebuggerCommandArguments>
   </PropertyGroup>
 </Project>

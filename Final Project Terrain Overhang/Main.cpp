@@ -422,13 +422,23 @@ void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, s
     //    terrain->updateTerrain();
     //}
     FIBITMAP* exportImage = nullptr;
+    
     std::string outputImageName = inputHeightMap.substr(0, inputHeightMap.length() - 4);
 
-    outputImageName = outputImageName.append("_Out.png");
-    //outputImagePath = outputImagePath.append("/").append(outputImageName);
-    const char* cstr = outputImageName.c_str();
+    std::string complexImageName = complexFeatureMap.substr(0, complexFeatureMap.length() - 4);
+    size_t complexPos = complexImageName.rfind('\\');
+    complexImageName = complexImageName.substr(complexPos + 1, complexImageName.length() - complexPos);
 
-    terrain->exportOutput(exportImage, cstr);
+    size_t pos = outputImageName.rfind('\\');
+
+    if (pos != std::string::npos) {
+        outputImageName = outputImageName.substr(pos, outputImageName.length() - pos);
+        outputImageName = outputImageName.append("_").append(complexImageName).append("_Out.png");
+        outputImagePath = outputImagePath.append(outputImageName);
+        const char* cstr = outputImagePath.c_str();
+
+        terrain->exportOutput(exportImage, cstr);
+    }
 }
 
 //C++ programs start executing in the main() function.
@@ -436,11 +446,16 @@ void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, s
 //terrain heightmap, complex feature image path, output image name/path
 int main(int argc, char **argv)
 {
-    std::vector<std::string> fileNameArguments;
+    std::vector<std::string> fileNameArguments;/* =
+    {
+    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Heightmaps\\HeightMap10.png",
+    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Complex Images\\Complex3.png",
+    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Output Images"
+    };*/
 
     if (argc != 4) {
-        std::cout << "Please provide 4 arguments" << std::endl;
-        //return 0;
+        std::cout << "Please provide 3 arguments" << std::endl;
+        return 0;
     }
 
     for (int i = 1; i < argc; i++) {
