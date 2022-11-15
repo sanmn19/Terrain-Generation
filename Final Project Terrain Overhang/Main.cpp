@@ -134,6 +134,25 @@ void draw_gui(GLFWwindow* window)
        }
    }
 
+   if (ImGui::Button("Hydraulic Erosion Preset1")) {
+       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+       terrain->generateTerrain();
+       instanceToRender = terrain->instancesToRender;
+
+       terrain->performHydraulicErosion(1, true, 11, false);
+       terrain->performHydraulicErosion(11, false, 1, true);
+       //if (updateErosion) {
+           //terrain->updateTerrain();
+       //}
+       FIBITMAP* exportImage = nullptr;
+       std::string outputImageName = texture_name.substr(0, texture_name.length() - 4);
+
+       outputImageName = outputImageName.append("_Out.png");
+       const char* cstr = outputImageName.c_str();
+
+       terrain->exportOutput(exportImage, cstr);
+   }
+
    if (ImGui::Button("Process Terrains for training")) {
        terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
        terrain->generateTerrain();
@@ -176,13 +195,22 @@ void draw_gui(GLFWwindow* window)
        }
 
        if (ImGui::Button("Hydraulic Erosion Preset1")) {
-           terrain->performHydraulicErosion(1, true, 20, false);
-           terrain->performHydraulicErosion(20, false, 1, true);
-           terrain->performHydraulicErosion(1, true, 20, false);
-           terrain->performHydraulicErosion(4, false, 1, true);
+           terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+           terrain->generateTerrain();
+           instanceToRender = terrain->instancesToRender;
+
+           terrain->performHydraulicErosion(1, true, 11, false);
+           terrain->performHydraulicErosion(11, false, 1, true);
            if (updateErosion) {
                terrain->updateTerrain();
            }
+           FIBITMAP* exportImage = nullptr;
+           std::string outputImageName = texture_name.substr(0, texture_name.length() - 4);
+           
+           outputImageName =  outputImageName.append("_Out.png");
+           const char* cstr = outputImageName.c_str();
+
+           terrain->exportOutput(exportImage, cstr);
        }
 
        if (ImGui::Checkbox("Sideways Erosion", &sidewaysErosion)) {
@@ -382,61 +410,96 @@ void initOpenGL()
    reload_shader();
 }
 
+//All file names with extension
+void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, std::string outputImagePath) {
+    terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), inputHeightMap, complexFeatureMap, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+    terrain->generateTerrain();
+    instanceToRender = terrain->instancesToRender;
+
+    terrain->performHydraulicErosion(1, true, 11, false);
+    terrain->performHydraulicErosion(11, false, 1, true);
+    //if (updateErosion) {
+    //    terrain->updateTerrain();
+    //}
+    FIBITMAP* exportImage = nullptr;
+    std::string outputImageName = inputHeightMap.substr(0, inputHeightMap.length() - 4);
+
+    outputImageName = outputImageName.append("_Out.png");
+    //outputImagePath = outputImagePath.append("/").append(outputImageName);
+    const char* cstr = outputImageName.c_str();
+
+    terrain->exportOutput(exportImage, cstr);
+}
+
 //C++ programs start executing in the main() function.
+
+//terrain heightmap, complex feature image path, output image name/path
 int main(int argc, char **argv)
 {
-   GLFWwindow* window;
+    std::vector<std::string> fileNameArguments;
 
-   /* Initialize the library */
-   if (!glfwInit())
-   {
-      return -1;
-   }
+    if (argc != 4) {
+        std::cout << "Please provide 4 arguments" << std::endl;
+        //return 0;
+    }
+
+    for (int i = 1; i < argc; i++) {
+        fileNameArguments.push_back(argv[i]);
+    }
+
+    GLFWwindow* window;
+
+    /* Initialize the library */
+    if (!glfwInit())
+    {
+        return -1;
+    }
 
 #ifdef _DEBUG
-   glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 #endif
 
-   /* Create a windowed mode window and its OpenGL context */
-   window = glfwCreateWindow(init_window_width, init_window_height, window_title, NULL, NULL);
-   if (!window)
-   {
-      glfwTerminate();
-      return -1;
-   }
+    /* Create a windowed mode window and its OpenGL context */
+    window = glfwCreateWindow(init_window_width, init_window_height, window_title, NULL, NULL);
+    if (!window)
+    {
+        glfwTerminate();
+        return -1;
+    }
+    
+    //Register callback functions with glfw. 
+    glfwSetKeyCallback(window, keyboard);
+    glfwSetCursorPosCallback(window, mouse_cursor);
+    glfwSetMouseButtonCallback(window, mouse_button);
+    glfwSetFramebufferSizeCallback(window, resize);
 
-   //Register callback functions with glfw. 
-   glfwSetKeyCallback(window, keyboard);
-   glfwSetCursorPosCallback(window, mouse_cursor);
-   glfwSetMouseButtonCallback(window, mouse_button);
-   glfwSetFramebufferSizeCallback(window, resize);
+    /* Make the window's context current */
+    glfwMakeContextCurrent(window);
 
-   /* Make the window's context current */
-   glfwMakeContextCurrent(window);
-
-   initOpenGL();
+    initOpenGL();
    
-   //Init ImGui
-   IMGUI_CHECKVERSION();
-   ImGui::CreateContext();
-   ImGui_ImplGlfw_InitForOpenGL(window, true);
-   ImGui_ImplOpenGL3_Init("#version 400");
+    //Init ImGui
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 400");
 
-   /* Loop until the user closes the window */
-   while (!glfwWindowShouldClose(window))
-   {
-      idle();
-      display(window);
+    processTerrain(fileNameArguments[0], fileNameArguments[1], fileNameArguments[2]);
+    /* Loop until the user closes the window */
+    /*
+    while (!glfwWindowShouldClose(window))
+    {
+        idle();
+        display(window);
 
-      /* Poll for and process events */
-      glfwPollEvents();
-   }
+        glfwPollEvents();
+    }*/
 
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-   glfwTerminate();
-   return 0;
+    glfwTerminate();
+    return 0;
 }

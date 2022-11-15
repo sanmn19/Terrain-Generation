@@ -1440,7 +1440,7 @@ inline void Terrain::createNewAirVoxel(Voxel** airVoxel, float height = 1) {
 
 inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, float currentStackTopHeight, std::vector<Voxel*>& neighbourStack, int& neighbourIndex, int& neighbourStackSize, float minNeighStackTopHeight, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize, bool createNewRain = false) {
 	//float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
-	float volumeProportion = ((currentStackTopHeight - minNeighStackTopHeight) / 4) * (heightDifference / sumOfHeights);
+	float volumeProportion = ((currentStackTopHeight - minNeighStackTopHeight)) * (heightDifference / sumOfHeights);
 	//float volumeProportion = (currentRainVoxel->height - neighbourStack[neighbourIndex]->height) * (heightDifference / sumOfHeights);
 	//float volumeProportion = (currentRainVoxel->height) / 2 * (heightDifference / sumOfHeights);
 	//float voxels = volumeProportion / voxelDimensionVertical;
@@ -1803,7 +1803,7 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 													float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourRainVoxel->height);
 
 													if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
-														float heightDifference = (currentStackBaseHeight - neighbourStackBaseHeight);
+														float heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
 
 														if (heightDifference > 0) {
 															if (heightDifference > sedimentMaximumHeightDifference) {
@@ -1813,7 +1813,7 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 															sedimentSumOfHeights += heightDifference;
 														}
 														else {
-															heightDifference = (currentRainVoxel->getSedimentVolume() - neighbourRainVoxel->getSedimentVolume());
+															heightDifference = (currentStackBaseHeight - neighbourStackBaseHeight);
 
 															if (heightDifference > 0) {
 																if (heightDifference > sedimentMaximumHeightDifference) {
@@ -1822,6 +1822,17 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 
 																sedimentSumOfHeights += heightDifference;
 															}
+															/*else {
+																heightDifference = ((currentRainVoxel->getSedimentRatio() - neighbourRainVoxel->getSedimentRatio()) / 2) * currentRainVoxel->height;
+
+																if (heightDifference > 0) {
+																	if (heightDifference > sedimentMaximumHeightDifference) {
+																		sedimentMaximumHeightDifference = heightDifference;
+																	}
+
+																	sedimentSumOfHeights += heightDifference;
+																}
+															}*/
 														}
 														/*else {
 															heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
@@ -1862,17 +1873,24 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 													float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourRainVoxel->height);
 
 													if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
-														float heightDifference = (currentStackBaseHeight - neighbourStackBaseHeight);
+														float heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
 
 														if (heightDifference > 0) {
 															transferSediment(currentRainVoxel, neighbourRainVoxel, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume, heightDifference);
 														}
 														else {
-															heightDifference = (currentRainVoxel->getSedimentVolume() - neighbourRainVoxel->getSedimentVolume());
+															heightDifference = (currentStackBaseHeight - neighbourStackBaseHeight);
 
 															if (heightDifference > 0) {
 																transferSediment(currentRainVoxel, neighbourRainVoxel, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume, heightDifference);
 															}
+															/*else {
+																heightDifference = ((currentRainVoxel->getSedimentRatio() - neighbourRainVoxel->getSedimentRatio()) / 2) * currentRainVoxel->height;
+
+																if (heightDifference > 0) {
+																	transferSediment(currentRainVoxel, neighbourRainVoxel, sedimentMaximumHeightDifference, sedimentSumOfHeights, sedimentMaxVolume, heightDifference);
+																}
+															}*/
 														}
 														/*else {
 															heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
@@ -2391,56 +2409,56 @@ inline glm::vec4 Terrain::processVoxelCell(int i, int j) {
 
 	int previousLayerMeasuredIndex = 0;
 	int currentLayerMeasuredIndex = 0;
-	int currentLayerHeight = 0;
+	float currentLayerHeight = 0;
 
 	for (int k = 0; k < cellVoxels.size(); k++) {
 		if (currentLayerMeasuredIndex == 0) {
-			if (cellVoxels[k]->materialId == 2) { //when air layer is found
+			if (cellVoxels[k]->materialId == 2 || cellVoxels[k]->materialId == 3) { //when air layer is found
 				previousLayerMeasuredIndex = 0;
 				currentLayerMeasuredIndex = 1;
 			}
 			else {
-				currentLayerHeight++;
+				currentLayerHeight += cellVoxels[k]->height;
 			}
 		}
 		if (currentLayerMeasuredIndex == 1) {
 			if (previousLayerMeasuredIndex == 0) {
-				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight);
 				previousLayerMeasuredIndex = 1;
-				currentLayerHeight = 1;
+				currentLayerHeight = cellVoxels[k]->height;
 			}
 			else {
-				if (cellVoxels[k]->materialId == 0) {	//when solid material is found again
+				if (cellVoxels[k]->materialId == 0 || cellVoxels[k]->materialId == 1) {	//when solid material is found again
 					previousLayerMeasuredIndex = 1;
 					currentLayerMeasuredIndex = 2;
 				}
-				else {
-					currentLayerHeight++;
+				else if(cellVoxels[k]->materialId == 2 || cellVoxels[k]->materialId == 3) {
+					currentLayerHeight += cellVoxels[k]->height;
 				}
 			}
 		}
 		if (currentLayerMeasuredIndex == 2) {
 			if (previousLayerMeasuredIndex == 1) {
-				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+				layerHeights[previousLayerMeasuredIndex] = (currentLayerHeight);
 				previousLayerMeasuredIndex = 2;
-				currentLayerHeight = 1;
+				currentLayerHeight = cellVoxels[k]->height;
 			}
 			else {
-				if (cellVoxels[k]->materialId == 2) {	//when air material is found again then end it
-					layerHeights[currentLayerMeasuredIndex] = (currentLayerHeight / (float)maxVoxelCount);
+				if (cellVoxels[k]->materialId == 2 || cellVoxels[k]->materialId == 3) {	//when air material is found again then end it
+					layerHeights[currentLayerMeasuredIndex] = (currentLayerHeight);
 					previousLayerMeasuredIndex = 2;
 					currentLayerMeasuredIndex = 3;
 					break;
 				}
-				else {
-					currentLayerHeight++;
+				else if(cellVoxels[k]->materialId == 0 || cellVoxels[k]->materialId == 1) {
+					currentLayerHeight += cellVoxels[k]->height;
 				}
 			}
 		}
 	}
 	
 	if (currentLayerMeasuredIndex == 0) {	//in case no air layers were found
-		layerHeights[0] = (currentLayerHeight / (float)maxVoxelCount);
+		layerHeights[0] = (currentLayerHeight);
 	}
 
 	return layerHeights;
@@ -2471,18 +2489,18 @@ inline void Terrain::exportOutput(FIBITMAP* img, const char * outputFileName) {
 			if (j < 256)
 			{
 				//write original image with heightmap and complex image blended in r,g,b channels
-				color[FI_RGBA_RED] = int(columnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED];
-				color[FI_RGBA_GREEN] = int(complexColumnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED];// ;
-				color[FI_RGBA_BLUE] = int(complexColumnVector[j].green * 255.0f);//columnVector[FI_RGBA_RED];// ;
+				color[FI_RGBA_RED] = int(columnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED]
+				color[FI_RGBA_GREEN] = int(complexColumnVector[j].red * 255.0f);//columnVector[FI_RGBA_RED]
+				color[FI_RGBA_BLUE] = int(complexColumnVector[j].green * 255.0f);//columnVector[FI_RGBA_RED]
 				color[FI_RGBA_ALPHA] = 255;
 			}
 			else
 			{
 				glm::vec4 layerHeights = processVoxelCell(i, j - 256);
 				//Convert the output from voxel to layers
-				color[FI_RGBA_RED] = int(layerHeights.r * 255);
-				color[FI_RGBA_GREEN] = int(layerHeights.g * 255);
-				color[FI_RGBA_BLUE] = int(layerHeights.b * 255);
+				color[FI_RGBA_RED] = int(layerHeights.r);
+				color[FI_RGBA_GREEN] = int(layerHeights.g);
+				color[FI_RGBA_BLUE] = int(layerHeights.b);
 				color[FI_RGBA_ALPHA] = 255;
 			}
 
@@ -2525,8 +2543,8 @@ inline void Terrain::exportOutput(FIBITMAP* img, const char * outputFileName) {
 
 	//img = FreeImage_ConvertTo32Bits(img);
 	FreeImage_Save(FIF_PNG, img, outputFileName, 0);
-	FreeImage_Save(FIF_PNG, originalHeightMap, "HeightMap_O_Test.png", 0);
-	FreeImage_Save(FIF_PNG, complexImage, "ComplexMap_O_Test.png", 0);
+	//FreeImage_Save(FIF_PNG, originalHeightMap, "HeightMap_O_Test.png", 0);
+	//FreeImage_Save(FIF_PNG, complexImage, "ComplexMap_O_Test.png", 0);
 }
 
 /* Code from Rules TB Surface*/
