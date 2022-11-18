@@ -16,7 +16,7 @@ void main(void)
 	vec3 lightDir = lightPos;// normalize(lightPos);
 	//fragcolor = colorOut;//max(0.0f, dot(normal, lightDir));// texture(diffuse_tex, tex_coord);
 	if (posBased.x > 0.9) {
-		fragcolor = vec4(posOut.y * colOut.r, posOut.y * colOut.g, posOut.y * colOut.b, colOut.a);
+		fragcolor = vec4(posOut.y/255.0f * colOut.r, posOut.y/255.0f * colOut.g, posOut.y/255.0f * colOut.b, colOut.a);
 	}
 	else {
 		fragcolor = colOut;

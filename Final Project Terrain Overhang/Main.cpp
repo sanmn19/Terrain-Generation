@@ -28,8 +28,18 @@ static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
 GLuint shader_program = -1;
 
-static const std::string texture_name = "HeightMap11.png";
-static const std::string complex_features_map_name = "Complex3.png";
+//static const std::string texture_name = "HeightMap11.png";
+//static const std::string texture_name = "OutputImage1.png";
+//static const std::string complex_features_map_name = "Complex3.png";
+
+std::vector<std::string> returnList;
+int currentItem = 0;
+
+//static const std::string texture_name = "n39_w110_1arc_v3_0003_0002_c.png";
+//static const std::string texture_name = "n44_w110_1arc_v3_0004_0002_cr.png";
+static const std::string texture_name = "outputImage.png";
+//static const std::string complex_features_map_name = "n43_w110_1arc_v3_0003_0004_cp.png";
+static const std::string complex_features_map_name = "n38_w106_1arc_v3_0002_0004_crp.png";
 
 //GLuint texture_id = -1; //Texture map for mesh
 //MeshData mesh_data;
@@ -52,16 +62,18 @@ bool evaporationEnabled = true;
 bool waterFlowEnabled = true;
 bool absorbFromGround = true;
 
+char * fileName;
+
 int selectedRow = 0;
 int selectedColumn = 0;
 
-float x = 2.282;
-float y = 10.059;
-float z = 9.045;
+float x = 109.885;
+float y = 224.059;
+float z = 869.045;
 
-float c1 = 2.113;
-float c2 = 0.085;
-float c3 = 0;
+float c1 = 77.113;
+float c2 = 212.085;
+float c3 = 72;
 
 
 /*
@@ -135,7 +147,7 @@ void draw_gui(GLFWwindow* window)
    }
 
    if (ImGui::Button("Hydraulic Erosion Preset1")) {
-       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, 0);
        terrain->generateTerrain();
        instanceToRender = terrain->instancesToRender;
 
@@ -154,14 +166,23 @@ void draw_gui(GLFWwindow* window)
    }
 
    if (ImGui::Button("Process Terrains for training")) {
-       terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+       terrain = new Terrain(0, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, 0);
        terrain->generateTerrain();
+       returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
        instanceToRender = terrain->instancesToRender;
    }
 
    if (ImGui::Button("Process Terrains for final output")) {
-       terrain = new Terrain(false, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, renderMode);
+       terrain = new Terrain(2, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, renderMode);
        terrain->generateTerrain();
+       returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
+       instanceToRender = terrain->instancesToRender;
+   }
+
+   if (ImGui::Button("Process Terrains from training image")) {
+       terrain = new Terrain(1, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, renderMode);
+       terrain->generateTerrain();
+       returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
        instanceToRender = terrain->instancesToRender;
    }
 
@@ -192,10 +213,11 @@ void draw_gui(GLFWwindow* window)
            if (updateErosion) {
                terrain->updateTerrain();
            }
+           returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
        }
 
        if (ImGui::Button("Hydraulic Erosion Preset1")) {
-           terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+           terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), texture_name, complex_features_map_name, glm::vec3(scale[0], scale[1], scale[2]), 1, 0);
            terrain->generateTerrain();
            instanceToRender = terrain->instancesToRender;
 
@@ -228,13 +250,21 @@ void draw_gui(GLFWwindow* window)
 
        if (ImGui::SliderInt("I Axis", &selectedRow, 0, 255)) {
            terrain->selectedI = selectedRow;
+           returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
        }
        
        if (ImGui::SliderInt("J Axis", &selectedColumn, 0, 255)) {
            terrain->selectedJ = selectedColumn;
+           returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
+           if (updateErosion) {
+               terrain->updateTerrain();
+           }
        }
        
-       if (terrain->forTraining) {
+       if (terrain->mode == 0) {
            if (ImGui::Button("Export Image")) {
                 FIBITMAP* exportImage = nullptr;
                 terrain->exportOutput(exportImage, "outputImage.png");
@@ -254,19 +284,35 @@ void draw_gui(GLFWwindow* window)
    ImGui::SliderFloat("View angle", &angle, -glm::pi<float>(), +glm::pi<float>());
    //ImGui::SliderFloat("Scale", &scale, 0.01f, +100.0f);
 
-   ImGui::SliderFloat("X", &x, -100, 100);
-   ImGui::SliderFloat("Y", &y, -100, 100);
-   ImGui::SliderFloat("Z", &z, -100, 100);
+   ImGui::SliderFloat("X", &x, -4000, 4000);
+   ImGui::SliderFloat("Y", &y, -4000, 4000);
+   ImGui::SliderFloat("Z", &z, -4000, 4000);
 
-   ImGui::SliderFloat("C1", &c1, -100, 100);
-   ImGui::SliderFloat("C2", &c2, -100, 100);
-   ImGui::SliderFloat("C3", &c3, -100, 100);
+   ImGui::SliderFloat("C1", &c1, -256, 256);
+   ImGui::SliderFloat("C2", &c2, -256, 256);
+   ImGui::SliderFloat("C3", &c3, -256, 256);
 
    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
    ImGui::End();
 
-   static bool show_test = false;
-   ImGui::ShowDemoWindow(&show_test);
+   ImGui::Begin("List");
+   for (int k = 0; k < returnList.size(); k++) {
+       ImGui::Text(returnList[k].c_str());
+   }
+
+   ImGui::Separator();
+
+   ImGui::Text("Current Cell Status");
+
+   if (terrain != nullptr) {
+       for (int k = 0; k < terrain->selectedCellStatusList.size(); k++) {
+           ImGui::Text(terrain->selectedCellStatusList[k].c_str());
+       }
+   }
+   ImGui::End();
+
+   //static bool show_test = false;
+   //ImGui::ShowDemoWindow(&show_test);
 
    //End ImGui Frame
    ImGui::Render();
@@ -412,12 +458,13 @@ void initOpenGL()
 
 //All file names with extension
 void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, std::string outputImagePath) {
-    terrain = new Terrain(true, glm::vec3(0.0f, 0.0f, 0.0f), inputHeightMap, complexFeatureMap, glm::vec3(scale[0], scale[1], scale[2]), 0.02f, 0);
+    terrain = new Terrain(0, glm::vec3(0.0f, 0.0f, 0.0f), inputHeightMap, complexFeatureMap, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, 0);
     terrain->generateTerrain();
     instanceToRender = terrain->instancesToRender;
 
-    terrain->performHydraulicErosion(1, true, 11, false);
-    terrain->performHydraulicErosion(11, false, 1, true);
+    terrain->performThermalErosion(2);
+    terrain->performHydraulicErosion(1, true, 40, false);
+    terrain->performHydraulicErosion(10, false, 1, true);
     //if (updateErosion) {
     //    terrain->updateTerrain();
     //}
@@ -434,8 +481,10 @@ void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, s
     if (pos != std::string::npos) {
         outputImageName = outputImageName.substr(pos, outputImageName.length() - pos);
         outputImageName = outputImageName.append("_").append(complexImageName).append("_Out.png");
-        outputImagePath = outputImagePath.append(outputImageName);
+        outputImagePath = outputImagePath.substr(0, outputImagePath.length()).append(outputImageName);
         const char* cstr = outputImagePath.c_str();
+
+        std::cout << "Writing final output to " << cstr << std::endl;
 
         terrain->exportOutput(exportImage, cstr);
     }
@@ -448,8 +497,8 @@ int main(int argc, char **argv)
 {
     std::vector<std::string> fileNameArguments;/* =
     {
-    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Heightmaps\\HeightMap10.png",
-    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Complex Images\\Complex3.png",
+    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Heightmaps2\\HeightMap2.png",
+    "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Complex Images\\n37_w110_1arc_v3_0001_0001_rp.png",
     "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Output Images"
     };*/
 
@@ -457,9 +506,10 @@ int main(int argc, char **argv)
         std::cout << "Please provide 3 arguments" << std::endl;
         return 0;
     }
-
-    for (int i = 1; i < argc; i++) {
-        fileNameArguments.push_back(argv[i]);
+    else {
+        for (int i = 1; i < argc; i++) {
+            fileNameArguments.push_back(argv[i]);
+        }
     }
 
     GLFWwindow* window;
@@ -501,14 +551,20 @@ int main(int argc, char **argv)
 
     processTerrain(fileNameArguments[0], fileNameArguments[1], fileNameArguments[2]);
     /* Loop until the user closes the window */
+
     /*
+    if (terrain != nullptr) {
+        returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
+    }
+    
     while (!glfwWindowShouldClose(window))
     {
         idle();
         display(window);
 
         glfwPollEvents();
-    }*/
+    }
+    */
 
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();

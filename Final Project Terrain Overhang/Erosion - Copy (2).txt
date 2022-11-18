@@ -1,0 +1,40 @@
+ [106] "n39_w118_1arc_v3_0003_0001_r.png"
+Path : "D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Heightmaps\n39_w118_1arc_v3_0003_0001_r.png"
+"n39_w118_1arc_v3_0003_0001_r"
+"n37_w112_1arc_v3_0002_0001_p.png"
+Complex Path : "D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Complex Images2\n37_w112_1arc_v3_0002_0001_p.png"
+"n37_w112_1arc_v3_0002_0001_p"
+************************************
+"D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Output Images\n39_w118_1arc_v3_0003_0001_r_n37_w112_1arc_v3_0002_0001_p_Out.png"
+Vendor: ATI Technologies Inc.
+Renderer: AMD Radeon(TM) Graphics
+Version: 4.6.13596 Compatibility Profile/Debug Context 20.10.20.14 27.20.11020.14001
+GLSL Version: 4.60
+Register OpenGL debug callback 
+Step 0 in progress
+I'm here
+I'm here
+I'm here
+I'm here
+I'm here
+Total voxels moved 0
+Total Rain Voxel created65536
+Total Rain voxel evaporated 0
+Step 0 in progress
+I'm here
+I'm here
+I'm here
+I'm here
+I'm here
+Step 1 in progress
+I'm here
+I'm here
+I'm here
+I'm here
+I'm here
+Step 2 in progress
+I'm here
+I'm here
+I'm here
+I'm here
+I'm here

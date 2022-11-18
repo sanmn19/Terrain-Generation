@@ -1,7 +1,7 @@
 @echo off
 Title Populate Array with filenames and show them
-set "MasterFolder=D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Heightmaps"
-set "ComplexFolder=D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Complex Images"
+set "MasterFolder=D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Heightmaps2"
+set "ComplexFolder=D:\Purdue\Research\CGT 521 Fall 2022\Terrain-Generation\Data Set\Complex Images2"
 Set LogFile=%~dpn0.txt
 If exist "%LogFile%" Del "%LogFile%"
 
@@ -29,28 +29,18 @@ SetLocal EnableDelayedexpansion
     set "ComplexNameNE[!idy!]=%%~nf"
 )
 
-setlocal EnableDelayedExpansion
-for /L %%x in (1,1,%idx%) do (
-    set /A randox=!random! %% !idy!
-    set /A randoy=!random! %% !idx!
-    set "randoxArray[%%x]=!randox!"
-    set "randoyArray[%%x]=!randoy!"
-)
-
-setlocal EnableDelayedExpansion
 rem Display array elements
 for /L %%j in (1,1,%idy%) do (
     for /L %%i in (1,1,%idx%) do (
-        set /A randotempx=!randoxArray[%%i]!
-        set /A randoy=!random! %% !idx!
-    	set currentHeightMap=!FileName[!randotempx!]!
-    	set currentHeightMapPath=!FilePath[!randoxArray[%%i]!]!
-    	set currentHeightMapNE=!FileNameNE[!randoxArray[%%i]!]!
-    	set currentComplexMap=!ComplexName[!randoyArray[%%j]!]!
-    	set currentComplexMapPath=!ComplexPath[!randoyArray[%%j]!]!
-    	set currentComplexMapNE=!ComplexNameNE[!randoyArray[%%j]!]!
-        
-	echo [!randotempx!] "!currentHeightMap!"
+	set /A randox=%random% %% !idy!
+	set /A randoy=%random% %% !idx!
+	call set currentHeightMap=%%FileName[!randox!]%%
+	call set currentHeightMapPath=%%FilePath[!randox!]%%
+	call set currentHeightMapNE=%%FileNameNE[!randox!]%%
+	call set currentComplexMap=%%ComplexName[!randoy!]%%
+	call set currentComplexMapPath=%%ComplexPath[!randoy!]%%
+	call set currentComplexMapNE=%%ComplexNameNE[!randoy!]%%
+        echo [!randox!] "!currentHeightMap!"
         ( 
             echo( [!randox!] "!currentHeightMap!"
             echo Path : "!currentHeightMapPath!"
@@ -65,7 +55,6 @@ for /L %%j in (1,1,%idy%) do (
         )>> "%LogFile%"
     )
 )
-
 ECHO(
 ECHO Total text files(s) : !idx!
 ECHO Total text files(s) : !idy!

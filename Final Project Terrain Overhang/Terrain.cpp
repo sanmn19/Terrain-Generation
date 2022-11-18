@@ -10,6 +10,7 @@
 #include "ShaderLocs.h"
 #include <cmath>
 #include <map>
+#include <algorithm>
 
 #define RESTART_PRIMITIVE_CODE 0xffffffff
 
@@ -106,7 +107,7 @@ class Terrain {
 	void thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
 	void transferSediment(RainVoxel* currentRainVoxel, RainVoxel* neighbourVoxel, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference);
 	void transferSedimentFromSide(std::vector<Voxel*>& neighbourStack, GroundVoxel* neighbourGroundVoxel, int& neighbourIndex, float heightFromBase, float absorbedAmount, float neighbourBaseHeight, float neighbourTopHeight);
-	bool transferWater(RainVoxel* currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, float currentStackTopHeight, std::vector<Voxel*>& neighbourStack, int & neighbourIndex, int & neighbourStackSize, float minNeighbourStackTopHeight, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize, bool createNewRainVoxel);
+	bool transferWater(RainVoxel* currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, float currentStackTopHeight, std::vector<Voxel*>& neighbourStack, int & neighbourIndex, int & neighbourStackSize, float neighbourStackTopHeight, float maxNeighStackTopHeight, float minNeighbourStackTopHeight, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize, int i, int j, int neighbourI, int neighbourJ, bool createNewRainVoxel);
 	float getAngleOfTalus(float height, float verticalDifference);
 	void createNewRainVoxel(RainVoxel** rainVoxel, float waterQuantity);
 	void createNewAirVoxel(Voxel** airVoxel, float height); 
@@ -121,6 +122,8 @@ class Terrain {
 	bool waterFlowEnabled = true;
 	bool absorbWaterFromGround = true;
 
+	float maxMinHeightRatio = 0;
+
 public:
 	bool isThermalErosionInProgress = false;
 	bool hasThermalErosionCompleted = false;
@@ -128,7 +131,21 @@ public:
 	bool isHydraulicErosionInProgress = false;
 	bool hasHydraulicErosionCompleted = false;
 
-	bool forTraining = true;
+	int mode = 0;
+
+	std::vector<std::string> getVoxelMapCell(int i, int j) {
+		std::vector<std::string> returnList;
+		if (i >= voxelMap.size() || j >= voxelMap[i].size()) {
+			return returnList;
+		}
+
+		for (int k = 0; k < voxelMap[i][j].size(); k++) {
+			std::string val = std::to_string(voxelMap[i][j][k]->materialId) + " " + std::to_string(voxelMap[i][j][k]->height);
+			returnList.push_back(val);
+		}
+
+		return returnList;
+	}
 
 	class Voxel {
 	public:
@@ -377,6 +394,8 @@ public:
 	int selectedI = 0;
 	int selectedJ = 0;
 
+	std::vector<std::string> selectedCellStatusList;
+
 	int instancesToRender;
 	//unsigned int vertexCount;
 	std::vector <GLfloat> vertices;
@@ -387,7 +406,7 @@ public:
 	double voxelDimensionVertical;
 
 	Terrain() = default;
-	Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, int renderMode);
+	Terrain(int mode, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, int renderMode);
 
 	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3]);
 
@@ -412,6 +431,7 @@ public:
 
 	void generateTerrain();
 	void generateTerrainForFinalOutput(FIBITMAP* img);
+	void generateTerrainFromTrainingImage(FIBITMAP* img);
 
 	glm::mat4 getModelMatrix();
 	void generateTerrain(FIBITMAP * img, FIBITMAP* complexImg);
@@ -471,15 +491,15 @@ inline void Terrain::setRenderMode(int renderMode) {
 	this->renderMode = renderMode;
 }
 
-inline Terrain::Terrain(bool forTraining, glm::vec3 position, const std::string & filePath, const std::string& complexFilePath, glm::vec3 scale, double voxelDimension = 1.0, int renderMode = 0) {
-	this->forTraining = forTraining;
+inline Terrain::Terrain(int mode, glm::vec3 position, const std::string & filePath, const std::string& complexFilePath, glm::vec3 scale, double voxelDimension = 255.0, int renderMode = 0) {
+	this->mode = mode;
 	setRenderMode(renderMode);
 	this->position = position;
 	this->filePath = filePath;
 	this->complexFilePath = complexFilePath;
 	this->scale = scale;
 	this->voxelDimension = voxelDimension;
-	this->voxelDimensionVertical = voxelDimension;
+	this->voxelDimensionVertical = voxelDimension * 255.0f;
 
 	num_indices = boxIndices.size();
 	indexCount = num_indices;
@@ -763,10 +783,10 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 			{
 				if (voxelMap[i][j][k]->materialId != 2) {
 					Voxel* voxel = voxelMap[i][j][k];
-					glm::vec3 tran = glm::vec3(i * voxelDimension, (height + (voxel->height / 2)) * voxelDimensionVertical, j * voxelDimension);
+					glm::vec3 tran = glm::vec3(i * voxelDimension, (height + (voxel->height / 2)), j * voxelDimension);
 					glm::mat4 trans = glm::translate(glm::mat4(1.f), tran);
 					height += voxel->height;
-					trans = glm::scale(trans, glm::vec3(voxelDimension, voxel->height * voxelDimensionVertical, voxelDimension));
+					trans = glm::scale(trans, glm::vec3(voxelDimension, voxel->height, voxelDimension));
 					matrix_data_solid->push_back(trans);
 					if (i == selectedI || j == selectedJ) {
 						colors->push_back(glm::vec4(0, 1, 0, 1));
@@ -896,6 +916,28 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 	//voxelMap.reserve(rowSize);
 	
 	float maxHeightOfTerrain = 0;	//Maybe used later
+	float minHeightOfTerrain = 1;
+
+	for (int i = 0; i < rowSize; i++) {
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
+
+		for (int j = 0; j < columnSize; j++) {
+			if (columnVector[j].red < minHeightOfTerrain) {
+				minHeightOfTerrain = columnVector[j].red;
+			}
+			
+			if (columnVector[j].red > maxHeightOfTerrain) {
+				maxHeightOfTerrain = columnVector[j].red;
+			}
+		}
+	}
+
+	minHeightOfTerrain = minHeightOfTerrain * voxelDimensionVertical;
+	maxHeightOfTerrain = maxHeightOfTerrain * voxelDimensionVertical;
+
+	maxMinHeightRatio = (maxHeightOfTerrain - minHeightOfTerrain) / 255.0f;
+
+	float factor = (1.014f * (0.358f + 1.0f)) / (1.0f * (1.014f - 0.358f));
 
 	for (int i = 0; i < rowSize; i = i + 1) {
 		//std::cout << "i " << i << std::endl;
@@ -906,37 +948,37 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 		for (int j = 0; j < columnSize; j = j + 1) {
 			std::vector<Voxel*> rowColumnVoxels;
 
-			float overHangValue = gaussianBlurredMatrix[i][j]->red;
-			float caveValue = gaussianBlurredMatrix[i][j]->green;
+			float overHangValue = std::min(1.0f, std::max(0.0f, (factor * (gaussianBlurredMatrix[i][j]->red - 0.5f) +  0.5f) + 0.34f )) * voxelDimensionVertical;
+			float caveValue = std::min(1.0f, std::max(0.0f, (factor * (gaussianBlurredMatrix[i][j]->green - 0.5f) + 0.5f) + 0.34f )) * voxelDimensionVertical;
 
 			float looseMaterialHeight = 0;
 			float looseMaterialStart = -1;
 			int complexFeatureFoundCode = 0;
 
-			float height = columnVector[j].red;
+			float height = std::min(1.0f, std::max(0.0f, (factor * (columnVector[j].red - 0.5f) + 0.5f) + 0.34f )) * voxelDimensionVertical;
 
 			if (overHangValue > 0 && height > 0) {	//Overhangs override caves
 				if (overHangValue > 1) {
 					overHangValue = 1;
 				}
-				looseMaterialHeight = (overHangValue) * 0.7f * height;
-				looseMaterialStart = (overHangValue) * 0.15f * height;
+				looseMaterialHeight = (overHangValue) * 0.7f * ((height - minHeightOfTerrain));
+				looseMaterialStart = ((overHangValue) * 0.15f * (height - minHeightOfTerrain)) + minHeightOfTerrain;
 				complexFeatureFoundCode = 1;
 				
 				GroundVoxel* newBaseVoxel = new GroundVoxel();
-				newBaseVoxel->height = looseMaterialStart / voxelDimensionVertical;
+				newBaseVoxel->height = looseMaterialStart;
 				newBaseVoxel->materialId = 0;
 				newBaseVoxel->angleOfTalus = 45;
 				rowColumnVoxels.push_back(newBaseVoxel);
 
 				GroundVoxel* newOverHangVoxel = new GroundVoxel();
-				newOverHangVoxel->height = looseMaterialHeight / voxelDimensionVertical;
+				newOverHangVoxel->height = looseMaterialHeight;
 				newOverHangVoxel->materialId = 1;
 				newOverHangVoxel->angleOfTalus = 30;
 				rowColumnVoxels.push_back(newOverHangVoxel);
 
 				GroundVoxel* newTopVoxel = new GroundVoxel();
-				newTopVoxel->height = abs(height - (looseMaterialStart + looseMaterialHeight)) / voxelDimensionVertical;
+				newTopVoxel->height = abs(height - (looseMaterialStart + looseMaterialHeight));
 				newTopVoxel->materialId = 0;
 				newTopVoxel->angleOfTalus = 45;
 				rowColumnVoxels.push_back(newTopVoxel);
@@ -949,23 +991,23 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 						caveValue = 1;
 					}
 					looseMaterialHeight = (caveValue) * 0.3f; //Static height of cave
-					looseMaterialStart = (caveValue) * 0.15f * height;  //Is at a relative height
+					looseMaterialStart = ((caveValue) * 0.15f * (maxHeightOfTerrain - minHeightOfTerrain)) + minHeightOfTerrain;  //Is at a relative height
 					complexFeatureFoundCode = 2;
 
 					GroundVoxel* newBaseVoxel = new GroundVoxel();
-					newBaseVoxel->height = looseMaterialStart / voxelDimensionVertical;
+					newBaseVoxel->height = looseMaterialStart;
 					newBaseVoxel->materialId = 0;
 					newBaseVoxel->angleOfTalus = 45;
 					rowColumnVoxels.push_back(newBaseVoxel);
 
 					GroundVoxel* newOverHangVoxel = new GroundVoxel();
-					newOverHangVoxel->height = looseMaterialHeight / voxelDimensionVertical;
+					newOverHangVoxel->height = looseMaterialHeight;
 					newOverHangVoxel->materialId = 1;
 					newOverHangVoxel->angleOfTalus = 30;
 					rowColumnVoxels.push_back(newOverHangVoxel);
 
 					GroundVoxel* newTopVoxel = new GroundVoxel();
-					newTopVoxel->height = abs(height - (looseMaterialStart + looseMaterialHeight)) / voxelDimensionVertical;
+					newTopVoxel->height = abs(height - (looseMaterialStart + looseMaterialHeight));
 					newTopVoxel->materialId = 0;
 					newTopVoxel->angleOfTalus = 45;
 					rowColumnVoxels.push_back(newTopVoxel);
@@ -974,7 +1016,7 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 				}
 				else if(height > 0) {
 					GroundVoxel* newBaseVoxel = new GroundVoxel();
-					newBaseVoxel->height = height / voxelDimensionVertical;
+					newBaseVoxel->height = height;
 					newBaseVoxel->materialId = 0;
 					newBaseVoxel->angleOfTalus = 45;
 					rowColumnVoxels.push_back(newBaseVoxel);
@@ -1010,33 +1052,79 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 			float baseRockHeight = columnVector[j].red;
 			float airLayerHeight = columnVector[j].green;
 			float overhangHeight = columnVector[j].blue;
-			float baseVoxelCount = (baseRockHeight) / voxelDimensionVertical;
-			float airVoxelCount = (airLayerHeight) / voxelDimensionVertical;
-			float overhangCount = (overhangHeight) / voxelDimensionVertical;
-
 			std::vector<Voxel*> rowColumnVoxels;
 
-			for (int k = 0; k < baseVoxelCount; k++) {
-				Voxel* newVoxel = new Voxel();
-				newVoxel->materialId = 0;
+			Voxel* newBaseVoxel = new Voxel();
+			newBaseVoxel->materialId = 0;
+			newBaseVoxel->height = baseRockHeight;
+			rowColumnVoxels.push_back(newBaseVoxel);
+			instanceCount++;
 
-				rowColumnVoxels.push_back(newVoxel);
+			Voxel* newAirVoxel = new Voxel();
+			newAirVoxel->materialId = 2;
+			newAirVoxel->height = airLayerHeight;
+			rowColumnVoxels.push_back(newAirVoxel);
+			instanceCount++;
+
+			Voxel* newOverhangVoxel = new Voxel();
+			newOverhangVoxel->materialId = 0;
+			newOverhangVoxel->height = overhangHeight;
+			rowColumnVoxels.push_back(newOverhangVoxel);
+			instanceCount++;
+
+			columnVoxels.push_back(rowColumnVoxels);
+
+			//std::cout << "Adding Vertex " << i << " " << j << std::endl;
+		}
+
+		voxelMap.push_back(columnVoxels);
+	}
+
+	instancesToRender = instanceCount;
+
+	generateRenderBuffers(rowSize, columnSize);
+}
+
+inline void Terrain::generateTerrainFromTrainingImage(FIBITMAP* img) {
+	instanceCount = 0;
+	int columnSize = FreeImage_GetWidth(img);
+	int rowSize = FreeImage_GetHeight(img);
+
+	for (int i = 0; i < rowSize; i = i + 1) {
+		//std::cout << "i " << i << std::endl;
+		FIRGBAF* columnVector = (FIRGBAF*)FreeImage_GetScanLine(img, i);
+
+		std::vector<std::vector<Voxel*>> columnVoxels;
+
+		for (int j = columnSize / 2; j < columnSize; j = j + 1) {
+			//std::cout << "i j " << i << " " << j << std::endl;
+			float baseRockHeight = columnVector[j].red * 255.0f;
+			float airLayerHeight = columnVector[j].green * 255.0f;
+			float overhangHeight = columnVector[j].blue * 255.0f;
+				
+			std::vector<Voxel*> rowColumnVoxels;
+
+			if (baseRockHeight > 0) {
+				Voxel* newBaseVoxel = new Voxel();
+				newBaseVoxel->materialId = 0;
+				newBaseVoxel->height = baseRockHeight;
+				rowColumnVoxels.push_back(newBaseVoxel);
 				instanceCount++;
 			}
 
-			for (int k = 0; k < airVoxelCount; k++) {
-				Voxel* newVoxel = new Voxel();
-				newVoxel->materialId = 2;
-
-				rowColumnVoxels.push_back(newVoxel);
+			if (airLayerHeight > 0) {
+				Voxel* newAirVoxel = new Voxel();
+				newAirVoxel->materialId = 2;
+				newAirVoxel->height = airLayerHeight;
+				rowColumnVoxels.push_back(newAirVoxel);
 				instanceCount++;
 			}
 
-			for (int k = 0; k < overhangCount; k++) {
-				Voxel* newVoxel = new Voxel();
-				newVoxel->materialId = 0;
-
-				rowColumnVoxels.push_back(newVoxel);
+			if (overhangHeight > 0) {
+				Voxel* newOverhangVoxel = new Voxel();
+				newOverhangVoxel->materialId = 0;
+				newOverhangVoxel->height = overhangHeight;
+				rowColumnVoxels.push_back(newOverhangVoxel);
 				instanceCount++;
 			}
 
@@ -1050,7 +1138,7 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 
 	instancesToRender = instanceCount;
 
-	generateRenderBuffers(rowSize, columnSize);
+	generateRenderBuffers(rowSize, columnSize / 2);
 }
 
 inline void Terrain::generateTerrain() {
@@ -1095,7 +1183,7 @@ inline void Terrain::generateTerrain() {
 		FreeImage_Unload(this->originalHeightMap);
 	}
 
-	if (forTraining) {
+	if (mode == 0) {
 		if (this->complexImage != nullptr) {
 			FreeImage_Unload(this->complexImage);
 		}
@@ -1123,7 +1211,15 @@ inline void Terrain::generateTerrain() {
 
 		generateTerrain(img, img2);
 	}
-	else {
+	else if (mode == 1) {
+		FIBITMAP* tempImg = FreeImage_Load(FreeImage_GetFileType(this->filePath.c_str(), 0), this->filePath.c_str());
+		FIBITMAP* img = FreeImage_ConvertToRGBAF(tempImg);
+
+		this->originalHeightMap = img;
+
+		generateTerrainFromTrainingImage(img);
+	}
+	else if(mode == 2) {
 		FIBITMAP* tempImg = FreeImage_Load(FreeImage_GetFileType(this->filePath.c_str(), 0), this->filePath.c_str());
 		FIBITMAP* img = FreeImage_ConvertToRGBAF(tempImg);
 		//FreeImage_Unload(tempImg);
@@ -1144,7 +1240,7 @@ inline void Terrain::thermalErosionCell(std::vector<Voxel*>& currentStack, std::
 	float heightDifference = (currentStackHeight - neighbourStackHeight);
 
 	if (heightDifference > 0) {
-		float angleOfTalus = getAngleOfTalus(heightDifference, 1);// voxelDimension);
+		float angleOfTalus = getAngleOfTalus(heightDifference, voxelDimension);// voxelDimension);
 
 		bool allVoxelTransferred = false;
 
@@ -1220,11 +1316,13 @@ inline void Terrain::transferSediment(RainVoxel* currentRainVoxel, RainVoxel* ne
 		while (lostSediments.size() > 0) {
 			if (!neighbourRainVoxel->absorbSediment(lostSediments[0]))
 			{
+				delete lostSediments[0];
 				lostSediments.erase(lostSediments.begin());
 				break;
 			}
 			else
 			{
+				delete lostSediments[0];
 				lostSediments.erase(lostSediments.begin());
 			}
 		}
@@ -1414,11 +1512,11 @@ inline void Terrain::transferSedimentFromSide(std::vector<Voxel*>& neighbourStac
 }
 
 inline float Terrain::getAbsorbability(GroundVoxel * groundVoxel) {
-	return 10.0f / (groundVoxel->angleOfTalus);
+	return 115.0f * maxMinHeightRatio / (groundVoxel->angleOfTalus);
 }
 
 inline float Terrain::getAbsorbabilityForSide(GroundVoxel* groundVoxel) {
-	return 20.0f / (groundVoxel->angleOfTalus);
+	return 225.0f * maxMinHeightRatio / (groundVoxel->angleOfTalus);
 }
 
 inline void Terrain::createNewRainVoxel(RainVoxel ** rainVoxel, float height = 1) {
@@ -1438,16 +1536,29 @@ inline void Terrain::createNewAirVoxel(Voxel** airVoxel, float height = 1) {
 	instancesToRender = instanceCount;
 }
 
-inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, float currentStackTopHeight, std::vector<Voxel*>& neighbourStack, int& neighbourIndex, int& neighbourStackSize, float minNeighStackTopHeight, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize, bool createNewRain = false) {
-	//float volumeProportion = maxVolume * (heightDifference / sumOfHeights);
-	float volumeProportion = ((currentStackTopHeight - minNeighStackTopHeight)) * (heightDifference / sumOfHeights);
+inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Voxel*>& currentStack, int currentIndex, float currentStackTopHeight, std::vector<Voxel*>& neighbourStack, int& neighbourIndex, int& neighbourStackSize, float neighbourStackTopHeight, float maxNeighStackTopHeight, float minNeighStackTopHeight, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference, int & stackSize, int i, int j, int neighbourI, int neighbourJ, bool createNewRain = false) {
+	//float volumeProportion = maxVolume / 2 * (heightDifference / sumOfHeights);
+	float volumeProportion = ((currentStackTopHeight - minNeighStackTopHeight) / 4) * (heightDifference / sumOfHeights);
+	//float volumeProportion = ((currentStackTopHeight - maxNeighStackTopHeight)) * (heightDifference / sumOfHeights);
 	//float volumeProportion = (currentRainVoxel->height - neighbourStack[neighbourIndex]->height) * (heightDifference / sumOfHeights);
 	//float volumeProportion = (currentRainVoxel->height) / 2 * (heightDifference / sumOfHeights);
 	//float voxels = volumeProportion / voxelDimensionVertical;
+	//float volumeProportion = ((currentStackTopHeight - neighbourStackTopHeight)) * (heightDifference / sumOfHeights);
 
 	RainVoxel* neighbourTopRainVoxel = nullptr;
 
 	float maxVoxels = volumeProportion;
+
+	if (selectedI == i && selectedJ == j) {
+		selectedCellStatusList.push_back("Transfer Water from current to neighbour i=" + std::to_string(neighbourI) 
+			+ " j=" + std::to_string(neighbourJ) + " maxVolume " + std::to_string(maxVoxels) + " with proportion " + std::to_string(heightDifference / sumOfHeights) 
+			+ " of actual volume " + std::to_string(currentStackTopHeight - neighbourStackTopHeight));
+	}
+	else if (neighbourI == selectedI && selectedJ == neighbourJ) {
+		selectedCellStatusList.push_back("Transfer Water from current i=" + std::to_string(i) + " j=" + std::to_string(j) + " to neighbour i = " + std::to_string(neighbourI)
+			+ " j=" + std::to_string(neighbourJ) + " maxVolume " + std::to_string(maxVoxels) + " with proportion " + std::to_string(heightDifference / sumOfHeights)
+			+ " of actual volume " + std::to_string(currentStackTopHeight - neighbourStackTopHeight));
+	}
 
 	if (neighbourStack[neighbourIndex]->materialId == 2) {
 		Voxel* topAirVoxel = neighbourStack[neighbourIndex];
@@ -1468,8 +1579,8 @@ inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Vox
 
 		if (topAirVoxel->height <= maxVoxels) {
 			maxVoxels = topAirVoxel->height;
-			alertMaterialId(neighbourStack[neighbourIndex + newRainInsertOffset]);
-			alertMaterialId(neighbourStack[neighbourIndex]);
+			//alertMaterialId(neighbourStack[neighbourIndex + newRainInsertOffset]);
+			//alertMaterialId(neighbourStack[neighbourIndex]);
 			delete topAirVoxel;
 			//alertMaterialId(neighbourStack[neighbourIndex]);
 			//alertMaterialId(neighbourStack[neighbourIndex + newRainInsertOffset]);
@@ -1522,11 +1633,13 @@ inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Vox
 	if (finalVolume > 0) {
 		lostVoxels = currentRainVoxel->loseSediment(finalVolume);
 		while (lostVoxels.size() > 0) {
-			alertMaterialId(lostVoxels[0]);
+			//alertMaterialId(lostVoxels[0]);
 			if (!neighbourTopRainVoxel->absorbSediment(lostVoxels[0])) {
+				delete lostVoxels[0];
 				lostVoxels.erase(lostVoxels.begin());
 				break;
 			}
+			delete lostVoxels[0];
 			lostVoxels.erase(lostVoxels.begin());
 		}
 	}
@@ -1534,10 +1647,10 @@ inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Vox
 	if (deleteRainVoxel) {
 		//If left over lostVoxel is present then deposit at the spot and negate that from air height
 		for (int dg = 0; dg < lostVoxels.size(); dg++) {
-			alertMaterialId(lostVoxels[dg]);
+			//alertMaterialId(lostVoxels[dg]);
 			if (currentIndex > 0) {
 				if (currentStack[currentIndex - 1]->materialId == 0 || currentStack[currentIndex - 1]->materialId == 1) {
-					alertMaterialId(currentStack[currentIndex - 1]);
+					//alertMaterialId(currentStack[currentIndex - 1]);
 					if (currentStack[currentIndex - 1]->materialId == lostVoxels[dg]->materialId) {
 						currentStack[currentIndex - 1]->height += lostVoxels[dg]->height;
 					}
@@ -1566,6 +1679,11 @@ inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Vox
 		}
 	}
 
+	for (int dg = 0; dg < lostVoxels.size(); dg++) {
+		delete lostVoxels[dg];
+	}
+	std::vector<GroundVoxel *>().swap(lostVoxels);
+
 	//delete &lostVoxels; TODO use that vector swap thingy
 
 	//std::cout << "Adjust air above" << std::endl;
@@ -1591,11 +1709,11 @@ inline bool Terrain::transferWater(RainVoxel * currentRainVoxel, std::vector<Vox
 		currentStack.erase(currentStack.begin() + currentIndex);
 		currentIndex--;
 		stackSize--;
-		if (currentIndex > 0) alertMaterialId(currentStack[currentIndex]);
-		if(currentIndex > 0) alertMaterialId(currentStack[currentIndex - 1]);
+		//if (currentIndex > 0) alertMaterialId(currentStack[currentIndex]);
+		//if(currentIndex > 0) alertMaterialId(currentStack[currentIndex - 1]);
 	}
 
-	alertMaterialId(neighbourStack[neighbourIndex]);
+	//alertMaterialId(neighbourStack[neighbourIndex]);
 
 	return deleteRainVoxel;
 }
@@ -1724,6 +1842,7 @@ inline void Terrain::alertMaterialId(Voxel* voxel) {
 }
 
 inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = false, int rateOfRain = 3, bool forceEvaporate = true) {
+	selectedCellStatusList.clear();
 	movedVoxelCount = 0;
 	rainVoxelCreated = 0;
 	rainVoxelEvaporated = 0;
@@ -1732,21 +1851,10 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 		for (int s = 0; s < steps; s++) {
 			std::cout << "Step " << s << " in progress" << std::endl;
 
-			if (s == 1) {
-				int myBlah = 2;
-			}
-
 			for (int i = 0; i < voxelMap.size(); i++) {
 				for (int j = 0; j < voxelMap[i].size(); j++) {
-					if ((i == 127 && j==23) || (i==127 && j==22) || (i==126&& j==22) ||(i==126 && j==23) ||(i==126 && j==24)) {
-						std::cout << "I'm here" << std::endl;
-					}
-					//if (s == 3) {
-					//	std::cout << "Step " << s << " i " << i<<" j "<<j << " in progress" << std::endl;
-					//}
 					int stackSize = voxelMap[i][j].size();
 					for (int k = 0; k < stackSize; k++) {
-						alertMaterialId(voxelMap[i][j][k]);
 						if (voxelMap[i][j][k]->materialId == 3) {
 							//std::cout << "i " << i << " j " << j<< " k "<<k<<" stackSize "<<stackSize << " repetition " << repetition << std::endl;
 							float sedimentMaximumHeightDifference = 0;
@@ -1775,16 +1883,10 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 							float currentStackBaseHeight = determineBaseHeight(currentStack, k);
 							float currentStackTopHeight = (currentStackBaseHeight + currentRainVoxel->height);
 
-							/*if (repetition == 0 && k == currentStack.size() - 1) {
-								std::cout << "i " << i << " j " << j << " top height " << currentStackTopHeight << " base height " << currentStackBaseHeight << std::endl;
-							}*/
+							if (selectedI == i && selectedJ == j) {
+								selectedCellStatusList.push_back("CurrentStack Top height " + std::to_string(currentStackTopHeight) + " currentstack base height " + std::to_string(currentStackBaseHeight));
+							}
 
-							//if ((i == 141 && j == 230)) {
-							//	std::cout << "we're here" << std::endl;
-							//}
-
-
-							//for (int rep = 0; rep < 10; rep++) {
 							//Sediment redistribution
 							if (currentRainVoxel != nullptr) {
 								for (int x = xStart; x < xEnd; x++) {
@@ -1907,91 +2009,65 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 								}
 							}
 
-						//Water transport
-							
-							if (waterFlowEnabled) {
+						}
+					}
+				}
+			}
 
-								float maximumHeightDifference = 0;
-								float sumOfHeights = 0;
-								float minNeighbourStackTopHeight = 0;
-
-								for (int x = xStart; x < xEnd; x++) {
-									for (int y = yStart; y < yEnd; y++) {
-										if (x == 1 && y == 1) {
-											continue;
-										}
-
-										std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
-
-										//if ((i + x - 1) == 141 && (j + y - 1) == 230) {
-										//	std::cout << "found the we're here neighbour" << std::endl;
-										//}
-
-										for (int n = 0; n < neighbourStack.size(); n++) {
-											if (neighbourStack[n]->materialId == 2) {
-												Voxel* neighbourAirVoxel = neighbourStack[n];
-												float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
-												float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourAirVoxel->height);
-
-												if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
-													float heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
-
-													if (heightDifference > 0) {
-														if (heightDifference > maximumHeightDifference) {
-															maximumHeightDifference = heightDifference;
-															minNeighbourStackTopHeight = neighbourStackBaseHeight;
-														}
-
-														sumOfHeights += (heightDifference);
-													}
-												}
-											}
-											else if (n == neighbourStack.size() - 1) {
-												Voxel* peakVoxel = nullptr;
-												peakVoxel = neighbourStack[n];
-
-												float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
-												float neighbourStackTopHeight = (neighbourStackBaseHeight + peakVoxel->height);
-
-												float heightDifference = (currentStackTopHeight - neighbourStackTopHeight);
-
-												if (heightDifference > 0) {
-													if (heightDifference > maximumHeightDifference) {
-														maximumHeightDifference = heightDifference;
-														minNeighbourStackTopHeight = neighbourStackTopHeight;
-													}
-
-													sumOfHeights += (heightDifference);
-												}
-											}
-											alertMaterialId(neighbourStack[n]);
-
-										}
+			if (waterFlowEnabled) {
+				for (int rep = 0; rep < 10; rep++) {
+					for (int i = 0; i < voxelMap.size(); i++) {
+						for (int j = 0; j < voxelMap[i].size(); j++) {
+							int stackSize = voxelMap[i][j].size();
+							for (int k = 0; k < stackSize; k++) {
+								if (voxelMap[i][j][k]->materialId == 3) {
+									if (i == 130 && j == 2) {
+										std::cout << "Debug"<<std::endl;
 									}
-								}
+									int xStart = 0;
+									int xEnd = 3;
+									int yStart = 0;
+									int yEnd = 3;
+									if (i == 0) {
+										xStart = 1;
+									}
+									else if (i == voxelMap.size() - 1) {
+										xEnd = 2;
+									}
 
-								if (minNeighbourStackTopHeight < currentStackBaseHeight) {
-									minNeighbourStackTopHeight = currentStackBaseHeight;
-								}
+									if (j == 0) {
+										yStart = 1;
+									}
+									else if (j == voxelMap[i].size() - 1) {
+										yEnd = 2;
+									}
 
-								float maxVolume = maximumHeightDifference;
-								//std::cout << "processing " << i << " " << j << std::endl;
+									RainVoxel* currentRainVoxel = (RainVoxel*)voxelMap[i][j][k];
+									std::vector<Voxel*>& currentStack = voxelMap[i][j];
+									float currentStackBaseHeight = determineBaseHeight(currentStack, k);
+									float currentStackTopHeight = (currentStackBaseHeight + currentRainVoxel->height);
 
-								//std::cout << "Water Flow " << std::endl;
+									//Water transport
+								
+									float maximumHeightDifference = 0;
+									float sumOfHeights = 0;
+									float minNeighbourStackTopHeight = 0;
+									float maxNeighbourStackTopHeight = 0;
 
-								if (sumOfHeights > 0) {
 									for (int x = xStart; x < xEnd; x++) {
 										for (int y = yStart; y < yEnd; y++) {
 											if (x == 1 && y == 1) {
 												continue;
 											}
+
 											std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
 
-											int neighbourStackSize = neighbourStack.size();
+											//if ((i + x - 1) == 141 && (j + y - 1) == 230) {
+											//	std::cout << "found the we're here neighbour" << std::endl;
+											//}
 
-											for (int n = 0; n < neighbourStackSize; n++) {
+											for (int n = 0; n < neighbourStack.size(); n++) {
 												if (neighbourStack[n]->materialId == 2) {
-													//std::cout << "Material air" << std::endl;
 													Voxel* neighbourAirVoxel = neighbourStack[n];
 													float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
 													float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourAirVoxel->height);
@@ -1999,59 +2075,175 @@ inline void Terrain::performHydraulicErosion(int steps = 100, bool addRain = fal
 													if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
 														float heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
 
-														if (heightDifference > 0 && currentRainVoxel != nullptr) {
-															//std::cout << "Material air water transport" << std::endl;
-															if (transferWater(currentRainVoxel, currentStack, k, currentStackTopHeight, neighbourStack, n, neighbourStackSize, minNeighbourStackTopHeight, maximumHeightDifference, sumOfHeights, maxVolume, heightDifference, stackSize)) {
-																currentRainVoxel = nullptr;
-																break;
+														if (heightDifference > 0) {
+															if (heightDifference > maximumHeightDifference) {
+																maximumHeightDifference = heightDifference;
+																minNeighbourStackTopHeight = neighbourStackBaseHeight;
 															}
+
+															if (neighbourStackBaseHeight > maxNeighbourStackTopHeight) {
+																maxNeighbourStackTopHeight = neighbourStackBaseHeight;
+															}
+
+															if (selectedI == i && selectedJ == j) {
+																selectedCellStatusList.push_back("Adding heightDifference " + std::to_string(heightDifference)
+																	+ " from cell i " + std::to_string(i + x - 1) + " j " + std::to_string(j + y - 1) + " top height " + std::to_string(neighbourStackTopHeight)
+																	+ " base height " + std::to_string(neighbourStackBaseHeight));
+															}
+
+															sumOfHeights += (heightDifference);
 														}
 													}
 												}
 												else if (n == neighbourStack.size() - 1) {
 													Voxel* peakVoxel = nullptr;
-													bool createNewRainVoxel = false;
-													if (neighbourStack[n]->materialId == 0 || neighbourStack[n]->materialId == 1) {
-														createNewRainVoxel = true;
-													}
 													peakVoxel = neighbourStack[n];
-													//std::cout << "Material rain" << std::endl;
+
 													float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
 													float neighbourStackTopHeight = (neighbourStackBaseHeight + peakVoxel->height);
 
 													float heightDifference = (currentStackTopHeight - neighbourStackTopHeight);
 
-													if (heightDifference > 0 && currentRainVoxel != nullptr) {
-														//std::cout << "Material rain water transport" << std::endl;
-														/*if (heightDifference > 0.05f) {
-															std::cout << "height diff greater than 0.1"<<std::endl;
-														}*/
-
-														if (transferWater(currentRainVoxel, currentStack, k, currentStackTopHeight, neighbourStack, n, neighbourStackSize, minNeighbourStackTopHeight, maximumHeightDifference, sumOfHeights, maxVolume, heightDifference, stackSize, createNewRainVoxel)) {
-															currentRainVoxel = nullptr;
-															break;
+													if (heightDifference > 0) {
+														if (heightDifference > maximumHeightDifference) {
+															maximumHeightDifference = heightDifference;
+															minNeighbourStackTopHeight = neighbourStackTopHeight;
+															
 														}
+														if (neighbourStackTopHeight > maxNeighbourStackTopHeight) {
+															maxNeighbourStackTopHeight = neighbourStackTopHeight;
+														}
+
+														if (selectedI == i && selectedJ == j) {
+															selectedCellStatusList.push_back("Adding heightDifference " + std::to_string(heightDifference)
+																+ " from cell i " + std::to_string(i + x - 1) + " j " + std::to_string(j + y - 1) + " top height " + std::to_string(neighbourStackTopHeight)
+																+ " base height " + std::to_string(neighbourStackBaseHeight));
+														}
+
+														sumOfHeights += (heightDifference);
 													}
 												}
+												//alertMaterialId(neighbourStack[n]);
 
-												alertMaterialId(neighbourStack[n]);
+											}
+										}
+									}
+
+									if (minNeighbourStackTopHeight < currentStackBaseHeight) {
+										minNeighbourStackTopHeight = currentStackBaseHeight;
+									}
+
+									float maxVolume = maximumHeightDifference;
+									if (selectedI == i && selectedJ == j) {
+										selectedCellStatusList.push_back("Maximum height difference " + std::to_string(maxVolume));
+									}
+									//std::cout << "processing " << i << " " << j << std::endl;
+
+									//std::cout << "Water Flow " << std::endl;
+
+									if (sumOfHeights > 0) {
+										for (int x = xStart; x < xEnd; x++) {
+											for (int y = yStart; y < yEnd; y++) {
+												if (x == 1 && y == 1) {
+													continue;
+												}
+												std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+
+												int neighbourStackSize = neighbourStack.size();
+
+												for (int n = 0; n < neighbourStackSize; n++) {
+													if (neighbourStack[n]->materialId == 2) {
+														//std::cout << "Material air" << std::endl;
+														Voxel* neighbourAirVoxel = neighbourStack[n];
+														float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
+														float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourAirVoxel->height);
+
+														if (isCellInRange(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
+															float heightDifference = (currentStackTopHeight - neighbourStackBaseHeight);
+
+															if (heightDifference > 0 && currentRainVoxel != nullptr) {
+																//std::cout << "Material air water transport" << std::endl;
+																if (transferWater(currentRainVoxel, currentStack, k, currentStackTopHeight, neighbourStack, n, neighbourStackSize, neighbourStackBaseHeight, maxNeighbourStackTopHeight, minNeighbourStackTopHeight, maximumHeightDifference, sumOfHeights, maxVolume, heightDifference, stackSize, i, j, (i + x - 1), (j + y - 1))) {
+																	currentRainVoxel = nullptr;
+																	break;
+																}
+															}
+														}
+													}
+													else if (n == neighbourStack.size() - 1) {
+														Voxel* peakVoxel = nullptr;
+														bool createNewRainVoxel = false;
+														if (neighbourStack[n]->materialId == 0 || neighbourStack[n]->materialId == 1) {
+															createNewRainVoxel = true;
+														}
+														peakVoxel = neighbourStack[n];
+														//std::cout << "Material rain" << std::endl;
+														float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
+														float neighbourStackTopHeight = (neighbourStackBaseHeight + peakVoxel->height);
+
+														float heightDifference = (currentStackTopHeight - neighbourStackTopHeight);
+
+														if (heightDifference > 0 && currentRainVoxel != nullptr) {
+															//std::cout << "Material rain water transport" << std::endl;
+															/*if (heightDifference > 0.05f) {
+																std::cout << "height diff greater than 0.1"<<std::endl;
+															}*/
+
+															if (transferWater(currentRainVoxel, currentStack, k, currentStackTopHeight, neighbourStack, n, neighbourStackSize, neighbourStackTopHeight, maxNeighbourStackTopHeight, minNeighbourStackTopHeight, maximumHeightDifference, sumOfHeights, maxVolume, heightDifference, stackSize, i, j, i + x - 1, j + y - 1, createNewRainVoxel)) {
+																currentRainVoxel = nullptr;
+																break;
+															}
+														}
+													}
+
+													//alertMaterialId(neighbourStack[n]);
+												}
+
+												if (currentRainVoxel == nullptr) {
+													break;
+												}
 											}
 
 											if (currentRainVoxel == nullptr) {
 												break;
 											}
 										}
-
-										if (currentRainVoxel == nullptr) {
-											break;
-										}
 									}
 								}
 							}
-							//}
+						}
+					}
+				}
+			}
+			//std::cout << " Sediment absorb " << std::endl;
+			
+			for (int i = 0; i < voxelMap.size(); i++) {
+				for (int j = 0; j < voxelMap[i].size(); j++) {
+					int stackSize = voxelMap[i][j].size();
+					for (int k = 0; k < stackSize; k++) {
+						if (voxelMap[i][j][k]->materialId == 3) {
+							int xStart = 0;
+							int xEnd = 3;
+							int yStart = 0;
+							int yEnd = 3;
+							if (i == 0) {
+								xStart = 1;
+							}
+							else if (i == voxelMap.size() - 1) {
+								xEnd = 2;
+							}
 
-							//std::cout << " Sediment absorb " << std::endl;
+							if (j == 0) {
+								yStart = 1;
+							}
+							else if (j == voxelMap[i].size() - 1) {
+								yEnd = 2;
+							}
 
+							RainVoxel* currentRainVoxel = (RainVoxel*)voxelMap[i][j][k];
+							std::vector<Voxel*>& currentStack = voxelMap[i][j];
+							float currentStackBaseHeight = determineBaseHeight(currentStack, k);
+							float currentStackTopHeight = (currentStackBaseHeight + currentRainVoxel->height);
 							if (absorbWaterFromGround) {
 								//Sediment absorption from ground
 								if (currentRainVoxel != nullptr) {
@@ -2340,6 +2532,12 @@ inline void Terrain::evaporate(RainVoxel* currentRainVoxel, int & currentIndex, 
 			}
 		}
 
+		/*for (int dg = 0; dg < lostSediments.size(); dg++) {
+			delete lostSediments[dg];
+		}*/
+
+		//std::vector<GroundVoxel*>().swap(lostSediments);
+
 		//delete[] & lostSediments; TODO use that vector swap thingy instead
 	}
 
@@ -2411,6 +2609,100 @@ inline glm::vec4 Terrain::processVoxelCell(int i, int j) {
 	int currentLayerMeasuredIndex = 0;
 	float currentLayerHeight = 0;
 
+	float airAverage = 0;
+	float airTopAverage = 0;
+	float airBottomAverage = 0;
+
+	if (cellVoxels.size() > 1) {
+		int airVoxelCount = 0;
+		for (int k = 0; k < cellVoxels.size(); k++) {
+			if (cellVoxels[k]->materialId == 2) {
+				float baseHeight = determineBaseHeight(cellVoxels, k);
+				float topHeight = baseHeight + cellVoxels[k]->height;
+				float centerHeight = (baseHeight + topHeight) / 2.0f;
+				airAverage += centerHeight;
+				airVoxelCount += 1;
+			}
+		}
+
+		airAverage /= airVoxelCount;
+
+		int airBottomCount = 0;
+		int airTopCount = 0;
+		
+		if (airAverage > 0) {
+			for (int k = 0; k < cellVoxels.size(); k++) {
+				if (cellVoxels[k]->materialId == 2) {
+					float baseHeight = determineBaseHeight(cellVoxels, k);
+					float topHeight = baseHeight + cellVoxels[k]->height;
+
+					if (topHeight > airAverage) {
+						airTopAverage += topHeight;
+						airTopCount++;
+					}
+
+					if (baseHeight < airAverage) {
+						airBottomAverage += baseHeight;
+						airBottomCount++;
+					}
+				}
+			}
+
+			if (airBottomCount != 0) {
+				airBottomAverage /= airBottomCount;
+				airTopAverage /= airTopCount;
+
+				layerHeights[0] = airBottomAverage;
+				layerHeights[1] = (airTopAverage - airBottomAverage);
+
+				float overhangBaseHeight = 0;
+				float overhangTopHeight = 0;
+
+				int groundCount = 0;
+
+				for (int k = 0; k < cellVoxels.size(); k++) {
+					if (cellVoxels[k]->materialId == 0 || cellVoxels[k]->materialId == 1) {
+						float baseHeight = determineBaseHeight(cellVoxels, k);
+						float topHeight = baseHeight + cellVoxels[k]->height;
+
+						if (baseHeight > airAverage) {
+							overhangBaseHeight += baseHeight;
+							overhangTopHeight += topHeight;
+							groundCount++;
+						}
+					}
+				}
+
+				if (groundCount != 0) {
+					overhangBaseHeight /= groundCount;
+					overhangTopHeight /= groundCount;
+
+					float topLayerHeight = overhangTopHeight - overhangBaseHeight;
+					if (topLayerHeight > 0) {
+						layerHeights[2] = topLayerHeight;
+					}
+					else {
+						std::cout << "top layer height is negative" << std::endl;
+					}
+				}
+				else {
+					layerHeights[2] = cellVoxels[cellVoxels.size() - 1]->height;
+				}
+			}
+			else {
+				layerHeights[0] = determineBaseHeight(cellVoxels, cellVoxels.size());
+			}
+		}
+		else { //no air layer found
+			layerHeights[0] = determineBaseHeight(cellVoxels, cellVoxels.size());
+		}
+	}
+	else {		//No air layers found
+		layerHeights[0] = determineBaseHeight(cellVoxels, cellVoxels.size());
+	}
+
+	
+	/*
 	for (int k = 0; k < cellVoxels.size(); k++) {
 		if (currentLayerMeasuredIndex == 0) {
 			if (cellVoxels[k]->materialId == 2 || cellVoxels[k]->materialId == 3) { //when air layer is found
@@ -2459,7 +2751,7 @@ inline glm::vec4 Terrain::processVoxelCell(int i, int j) {
 	
 	if (currentLayerMeasuredIndex == 0) {	//in case no air layers were found
 		layerHeights[0] = (currentLayerHeight);
-	}
+	}*/
 
 	return layerHeights;
 }
