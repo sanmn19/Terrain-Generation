@@ -21,6 +21,7 @@ class Terrain {
 	class Voxel;
 	class RainVoxel;
 	class GroundVoxel;
+	class ReVoxel;
 
 	glm::vec3 position;
 
@@ -31,6 +32,7 @@ class Terrain {
 	std::string complexFilePath;
 
 	std::vector<std::vector<std::vector<Terrain::Voxel *>>> voxelMap;
+	std::vector<glm::mat4>* matrix_data_solid;
 
 	//GLfloat* vertexBufferData;
 	//GLfloat* vertexNormalData;
@@ -97,12 +99,15 @@ class Terrain {
 	std::vector<glm::vec3> getZAxisVertices(const int& j, const int& columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition,
 		glm::vec3 pixel10VertexPosition);
 	bool isCellInRange(float firstBaseHeight, float firstTopHeight, float secondBaseHeight, float secondTopHeight);
+	bool isCellInRangeEqual(float firstBaseHeight, float firstTopHeight, float secondBaseHeight, float secondTopHeight);
 
+	inline bool traverseNeighbour(ReVoxel* currentReVoxel, int i, int j);
+	void refineFinalOutputTerrain();
 	void generateRenderBuffers(int rowSize, int columnSize);
 
 	FIBITMAP* originalHeightMap = nullptr;
 	FIBITMAP* complexImage = nullptr;
-	bool renderMode = 0; //0 = Voxel 1 = Mesh
+	bool renderMode = 1; //0 = Voxel 1 = Mesh
 
 	void thermalErosionCell(std::vector<Voxel*>& currentStack, std::vector<Voxel*>& neighbourStack, float maximumHeightDifference, float sumOfHeights, float maxVolume);
 	void transferSediment(RainVoxel* currentRainVoxel, RainVoxel* neighbourVoxel, float maximumHeightDifference, float sumOfHeights, float maxVolume, float heightDifference);
@@ -152,6 +157,12 @@ public:
 		//glm::vec3 velocity;
 		int materialId;
 		float height = 1;
+	};
+
+	class ReVoxel : public Voxel {
+	public:
+		bool visited = false;
+		bool isAttachedToGround = false;
 	};
 
 	class GroundVoxel : public Voxel {
@@ -408,7 +419,7 @@ public:
 	Terrain() = default;
 	Terrain(int mode, glm::vec3 position, const std::string & filePath, const std::string & complexFilePath, glm::vec3 scale, double voxelDimension, int renderMode);
 
-	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3]);
+	void render(glm::mat4 view, glm::mat4 projection, GLuint programID, GLuint nonInstanceProgramID, float lightDir[3]);
 
 	void setAngle(float angle);
 	void setScale(glm::vec3 scale);
@@ -500,10 +511,7 @@ inline Terrain::Terrain(int mode, glm::vec3 position, const std::string & filePa
 	this->scale = scale;
 	this->voxelDimension = voxelDimension;
 	this->voxelDimensionVertical = voxelDimension * 255.0f;
-
-	num_indices = boxIndices.size();
-	indexCount = num_indices;
-
+	
 	glGenVertexArrays(1, &vertexArrayObject);
 	glGenBuffers(1, &vertexAndNormalbuffer);
 	glGenBuffers(1, &index_buffer);
@@ -513,58 +521,80 @@ inline Terrain::Terrain(int mode, glm::vec3 position, const std::string & filePa
 	FreeImage_Initialise();
 }
 
-inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint programID, float lightDir[3])
+inline void Terrain::render(glm::mat4 view, glm::mat4 projection, GLuint programID, GLuint nonInstanceProgramID, float lightDir[3])
 {	
-	modelMatrix = getModelMatrix();
+	
 
-	glm::mat4 mvp = projection * view;
-
-	int MatrixID = glGetUniformLocation(programID, "PVM");
-	glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
-
-	int colorID = glGetUniformLocation(programID, "color");
-	if (colorID >= 0) {
-		glUniform3f(colorID, 0.3f, 0.3f, 0.3f);
-	}
-
-	int lightDirID = glGetUniformLocation(programID, "lightPos");
-	if (lightDirID >= 0) {
-		glUniform3f(lightDirID, lightDir[0], lightDir[1], lightDir[2]);
-	}
-
-	int modelViewID = glGetUniformLocation(programID, "M");
-	if (modelViewID >= 0) {
-		glUniformMatrix4fv(modelViewID, 1, GL_FALSE, &modelMatrix[0][0]);
-	}
-
-	glUseProgram(programID);
 	glBindVertexArray(vertexArrayObject);
-
 	glEnable(GL_PRIMITIVE_RESTART);
-	glPrimitiveRestartIndex(RESTART_PRIMITIVE_CODE);
+
 	if (drawMode == 0)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
-	} 
-	else if (drawMode == 1) 
+	}
+	else if (drawMode == 1)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 	}
-	else if (drawMode == 2) 
+	else if (drawMode == 2)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}
-	
-	//glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
-	glDrawElementsInstanced( GL_TRIANGLE_STRIP,
-		indexCount,
-		GL_UNSIGNED_INT,
-		0,
-		instancesToRender);
+
+	glPrimitiveRestartIndex(RESTART_PRIMITIVE_CODE);
+
+	if (renderMode == 0) {
+		glm::mat4 mvp = projection * view;
+
+		int MatrixID = glGetUniformLocation(programID, "PVM");
+		glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
+
+		int colorID = glGetUniformLocation(programID, "color");
+		if (colorID >= 0) {
+			glUniform3f(colorID, 0.3f, 0.3f, 0.3f);
+		}
+
+		int lightDirID = glGetUniformLocation(programID, "lightPos");
+		if (lightDirID >= 0) {
+			glUniform3f(lightDirID, lightDir[0], lightDir[1], lightDir[2]);
+		}
+
+		int modelViewID = glGetUniformLocation(programID, "M");
+		if (modelViewID >= 0) {
+			glUniformMatrix4fv(modelViewID, 1, GL_FALSE, &modelMatrix[0][0]);
+		}
+
+		glUseProgram(programID);
+		//glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+		glDrawElementsInstanced(GL_TRIANGLE_STRIP,
+			indexCount,
+			GL_UNSIGNED_INT,
+			0,
+			instancesToRender);
+	}
+	else if (renderMode == 1) {
+		modelMatrix = getModelMatrix();
+
+		glm::mat4 mvp = projection * view;
+
+		int MatrixID = glGetUniformLocation(nonInstanceProgramID, "PVM");
+		glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &mvp[0][0]);
+
+		int modelViewID = glGetUniformLocation(nonInstanceProgramID, "M");
+		if (modelViewID >= 0) {
+			glUniformMatrix4fv(modelViewID, 1, GL_FALSE, &modelMatrix[0][0]);
+		}
+
+		int lightDirID = glGetUniformLocation(nonInstanceProgramID, "lightPos");
+		if (lightDirID >= 0) {
+			glUniform3f(lightDirID, lightDir[0], lightDir[1], lightDir[2]);
+		}
+
+		glUseProgram(nonInstanceProgramID);
+		glDrawElements(GL_TRIANGLE_STRIP, indexCount, GL_UNSIGNED_INT, 0);
+	}
 
 	glDisable(GL_PRIMITIVE_RESTART);
-
-	//glDrawArrays(GL_TRIANGLE_STRIP, 0, vertexCount);
 
 	glBindVertexArray(0);
 }
@@ -638,7 +668,8 @@ inline void Terrain::convertFloatTo4Parts(float value1, glm::vec2 & controlPoint
 }
 
 inline int Terrain::getIndexForRowColumn(const int & i, const int & j, const int & rowSize, const int & columnSize) {
-	return (i * columnSize * 7) - (i * 3) + ((i != rowSize - 1) ? j * 7: j * 4);
+	//return (i * columnSize * 7) - (i * 3) + ((i != rowSize - 1) ? j * 7: j * 4);
+	return (i * columnSize * 3) + (j * 3);
 }
 
 inline void Terrain::addXAxisVertices(const int & j, const int & columnSize, FIRGBAF* columnVector, glm::vec3 pixel00VertexPosition, 
@@ -770,7 +801,7 @@ inline std::vector<std::vector<FIRGBAF *>> Terrain::convolution(FIBITMAP* img)
 
 inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int columnSize, bool createBuffer)
 {
-	std::vector<glm::mat4>* matrix_data_solid = new std::vector<glm::mat4>();
+	matrix_data_solid = new std::vector<glm::mat4>();
 	//std::vector<glm::mat4>* matrix_data_eroded = new std::vector<glm::mat4>();
 	std::vector<glm::vec4>* colors = new std::vector<glm::vec4>();
 
@@ -803,7 +834,7 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 							colors->push_back(glm::vec4(1, 1, 1, 1));
 						}
 						else if (voxel->materialId == 1) {
-							colors->push_back(glm::vec4(1, 0, 0, 1));
+							colors->push_back(glm::vec4(1, 1, 1, 1));
 						}
 						else {
 							std::cout << "something is wrong material id wrong " << voxel->materialId << std::endl;
@@ -842,7 +873,7 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 	}
 
 	delete colors;
-	delete matrix_data_solid;
+	//delete matrix_data_solid;
 
 	return model_matrix_buffers;
 }
@@ -851,6 +882,9 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 	if (renderMode == 0) {	//Voxel
 		glBindVertexArray(vertexArrayObject);
 		std::vector<GLuint> instanceMatrices = createModelMatrixBuffers(rowSize, columnSize, true);
+
+		num_indices = boxIndices.size();
+		indexCount = num_indices;
 		
 		glBindBuffer(GL_ARRAY_BUFFER, instanceMatrices[0]);
 		// bounding model matrix to shader
@@ -894,6 +928,153 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 	}
 	else if (renderMode == 1) {
 		//should I use marching cubes algo? I think yes TODO
+		
+		glBindVertexArray(vertexArrayObject);
+		vertices = std::vector<GLfloat>();
+		std::vector<GLfloat> normals = std::vector<GLfloat>(rowSize * columnSize * 3);
+		indexArray = std::vector<unsigned int>();
+		std::vector<int> weights = std::vector<int>(rowSize * columnSize, 0);
+		//float bitDivisor = std::numeric_limits<float>::max();// pow(2, (128 / 4)) - 1;
+
+		num_indices = ((rowSize - 1) * (columnSize) * 2) + (rowSize - 1);
+		indexCount = num_indices;
+
+		unsigned int idx = 0;
+
+		float columnSizeFloat = (float)columnSize;
+		float rowSizeFloat = (float)rowSize;
+
+		for (int i = 0; i < rowSize - 1; i = i + 1) {
+			for (int j = 0; j < columnSize; j = j + 1) {
+				
+				float normalizedJ = j / columnSizeFloat;
+				float normalizedI = i / rowSizeFloat;
+
+				//std::cout << "i j " << i << " " << j << std::endl;
+				if (i != rowSize - 1) {
+					indexArray.push_back(idx);
+					indexArray.push_back(idx + columnSize);
+					if (j == (columnSize - 1)) {
+						indexArray.push_back(RESTART_PRIMITIVE_CODE);
+					}
+				}
+
+				std::vector<Voxel*>& currentStack = voxelMap[i][j];
+				
+				float pixelValue00 = determineBaseHeight(currentStack, currentStack.size());
+				glm::vec3 pixel00VertexPosition = glm::vec3(i, pixelValue00, j);
+				AddVertex(&vertices, pixel00VertexPosition);
+
+				if (j < columnSize - 1) {
+					std::vector<Voxel*>& nextRowStack = voxelMap[i + 1][j];
+					std::vector<Voxel*>& nextColumnStack = voxelMap[i][j + 1];
+					std::vector<Voxel*>& nextRowNextColumnStack = voxelMap[i + 1][j + 1];
+
+					float pixelValue01 = determineBaseHeight(nextColumnStack, nextColumnStack.size());
+
+					float pixelValue10 = determineBaseHeight(nextRowStack, nextRowStack.size());
+
+					//float pixelValue11 = determineBaseHeight(nextRowNextColumnStack, nextRowNextColumnStack.size()) / 255.0f;
+
+					//float pixelValue11 = columnVectorNext[j + 1].red;
+					/*std::cout << "Pixel Value is  00 " << pixelValue00 << " 01 " << pixelValue01 << " 10 "
+						<< pixelValue10 << " 11 "
+						<< pixelValue11 << " "
+						<< std::endl;*/
+
+						//Generate vertices for these 4 pixels and connect them by triangles.
+					float normalizedJPlusOne = (j + 1) / columnSizeFloat;
+					float normalizedIPlusOne = (i + 1) / rowSizeFloat;
+
+					glm::vec3 pixel01VertexPosition = glm::vec3(i, pixelValue01, j + 1);
+					glm::vec3 pixel10VertexPosition = glm::vec3(i + 1, pixelValue10, j);
+					//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
+
+					glm::vec3 p = glm::normalize(pixel01VertexPosition - pixel00VertexPosition);
+					glm::vec3 q = glm::normalize(pixel10VertexPosition - pixel00VertexPosition);
+
+					glm::vec3 normal = glm::normalize(glm::cross(p, q));
+
+					//Add First Triangle
+
+					//AddVertex(&vertices, pixel11VertexPosition);
+					//AddVertex(&vertices, pixel10VertexPosition);
+					AppendNormal(normals, normal, i, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal, i + 1, j, rowSize, columnSize, weights);
+					AppendNormal(normals, normal, i, j + 1, rowSize, columnSize, weights);
+					//AddVertex(&normals, normal);
+					//AddVertex(&normals, normal);
+					//AddVertex(&normals, normal);
+
+					if (j != 0) {
+						float normalizedJMinusOne = (j - 1) / columnSizeFloat;
+
+						std::vector<Voxel*>& nextRowLastColumnStack = voxelMap[i + 1][j - 1];
+						float pixelValue1Minus1 = determineBaseHeight(nextRowLastColumnStack, nextRowLastColumnStack.size());
+						glm::vec3 pixel1Minus1VertexPosition = glm::vec3(i + 1, pixelValue1Minus1, j - 1);
+
+						glm::vec3 q2 = glm::normalize(pixel1Minus1VertexPosition - pixel00VertexPosition);
+
+						glm::vec3 normal2 = glm::normalize(glm::cross(q, q2));
+						AppendNormal(normals, normal2, i, j, rowSize, columnSize, weights);
+						AppendNormal(normals, normal2, i + 1, j, rowSize, columnSize, weights);
+						AppendNormal(normals, normal2, i + 1, j - 1, rowSize, columnSize, weights);
+					}
+				}
+
+
+				//Add First Triangle
+				//AddVertex(&vertices, pixel00VertexPosition);
+				//AddVertex(&vertices, pixel01VertexPosition);
+				//AddVertex(&vertices, pixel11VertexPosition);
+
+				//AddVertex(&normals, normal2);
+				//AddVertex(&normals, normal2);
+				//AddVertex(&normals, normal2);
+
+				idx++;
+			}
+		}
+
+		//replace with actual png terrain generation data by adding to vertices vector data
+
+		std::vector<GLfloat> finalData = std::vector<GLfloat>();
+
+		for (int i = 0; i < vertices.size(); i += 3) {
+			finalData.push_back(vertices[i]);
+			finalData.push_back(vertices[i + 1]);
+			finalData.push_back(vertices[i + 2]);
+
+			finalData.push_back(normals[i]);
+			finalData.push_back(normals[i + 1]);
+			finalData.push_back(normals[i + 2]);
+		}
+
+		//vertexBufferData = &vertices[0];
+		//vertexIndexData = &indexArray[0];
+		//vertexCount = vertices.size();
+
+
+
+		glBindBuffer(GL_ARRAY_BUFFER, vertexAndNormalbuffer); //Specify the buffer where vertex attribute data is stored.
+		//Upload from main memory to gpu memory.f
+		glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * finalData.size(), finalData.data(), GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer); //GL_ELEMENT_ARRAY_BUFFER is the target for buffers containing indices
+		//Upload from main memory to gpu memory.
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(unsigned int) * indexArray.size(), indexArray.data(), GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glEnableVertexAttribArray(1);
+
+		//Tell opengl how to get the attribute values out of the vbo (stride and offset).
+		const int stride = (3 + 3) * sizeof(float);
+		glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, BUFFER_OFFSET(0));
+		glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, BUFFER_OFFSET((3) * sizeof(float)));
+
+		glBindVertexArray(0); //unbind the vao
+
+
 	}
 }
 
@@ -1036,6 +1217,128 @@ inline void Terrain::generateTerrain(FIBITMAP * img, FIBITMAP* complexImg) {
 	generateRenderBuffers(rowSize, columnSize);
 }
 
+inline bool Terrain::traverseNeighbour(ReVoxel * currentReVoxel, int i, int j) {
+	int xStart = 0;
+	int xEnd = 3;
+	int yStart = 0;
+	int yEnd = 3;
+	if (i == 0) {
+		xStart = 1;
+	}
+	else if (i == voxelMap.size() - 1) {
+		xEnd = 2;
+	}
+
+	if (j == 0) {
+		yStart = 1;
+	}
+	else if (j == voxelMap[i].size() - 1) {
+		yEnd = 2;
+	}
+
+	currentReVoxel->visited = true;
+
+	std::vector<Voxel *>& currentStack = voxelMap[i][j];
+	float currentStackBaseHeight = determineBaseHeight(currentStack, 2);
+	float currentStackTopHeight = (currentStackBaseHeight + currentReVoxel->height);
+
+	if (currentStack[1]->height == 0 || currentReVoxel->isAttachedToGround) {
+		currentReVoxel->isAttachedToGround = true;
+		return true;
+	}
+	else {
+		bool hasNeighbours = false;
+
+		for (int x = xStart; x < xEnd; x++) {
+			for (int y = yStart; y < yEnd; y++) {
+				if (x == 1 && y == 1) {
+					continue;
+				}
+
+				std::vector<Voxel*>& neighbourStack = voxelMap[i + (x - 1)][j + (y - 1)];
+
+				for (int n = 0; n < neighbourStack.size(); n++) {
+					if (neighbourStack[n]->materialId == 0 || neighbourStack[n]->materialId == 1) {
+						Voxel* neighbourGroundVoxel = neighbourStack[n];
+						float neighbourStackBaseHeight = determineBaseHeight(neighbourStack, n);
+						float neighbourStackTopHeight = (neighbourStackBaseHeight + neighbourGroundVoxel->height);
+
+						if (neighbourStack[n]->materialId == 0) {
+							if (isCellInRangeEqual(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
+								hasNeighbours = true;
+								break;
+							}
+						}
+						else if (neighbourStack[n]->materialId == 1) {
+							ReVoxel* neighbourReVoxel = (ReVoxel*)neighbourGroundVoxel;
+
+							if (isCellInRangeEqual(currentStackBaseHeight, currentStackTopHeight, neighbourStackBaseHeight, neighbourStackTopHeight)) {
+								if (neighbourReVoxel->visited) {
+									if (neighbourReVoxel->isAttachedToGround) {
+										hasNeighbours = true;
+										break;
+									}
+								}
+								else {
+									hasNeighbours = traverseNeighbour(neighbourReVoxel, i + x - 1, j + y - 1);
+									if (hasNeighbours) {
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if (hasNeighbours) {
+					break;
+				}
+			}
+
+			if (hasNeighbours) {
+				break;
+			}
+		}
+
+		if (!hasNeighbours) {
+			return false;
+		}
+		else {
+			currentReVoxel->isAttachedToGround = true;
+			return true;
+		}
+	}
+}
+
+inline void Terrain::refineFinalOutputTerrain() {
+	for (int i = 0; i < voxelMap.size(); i++) {
+		for (int j = 0; j < voxelMap[i].size(); j++) {
+			if (voxelMap[i][j].size() >= 3) {
+				if (voxelMap[i][j][2]->materialId == 1) {
+					//std::cout << "i " << i << " j " << j<< " k "<<k<<" stackSize "<<stackSize << " repetition " << repetition << std::endl;
+					ReVoxel* currentReVoxel = (ReVoxel*)voxelMap[i][j][2];
+
+					if (!currentReVoxel->visited) {
+						bool hasNeighbours = traverseNeighbour(currentReVoxel, i, j);
+
+						if (!hasNeighbours) {
+							voxelMap[i][j].erase(voxelMap[i][j].begin() + 2);
+						}
+						else {
+							currentReVoxel->isAttachedToGround = true;
+						}
+					}
+					else {
+						if (!currentReVoxel->isAttachedToGround) {
+							voxelMap[i][j].erase(voxelMap[i][j].begin() + 2);
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 	instanceCount = 0;
 	int columnSize = FreeImage_GetWidth(img);
@@ -1049,9 +1352,9 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 
 		for (int j = 0; j < columnSize; j = j + 1) {
 			//std::cout << "i j " << i << " " << j << std::endl;
-			float baseRockHeight = columnVector[j].red;
-			float airLayerHeight = columnVector[j].green;
-			float overhangHeight = columnVector[j].blue;
+			float baseRockHeight = columnVector[j].red * voxelDimensionVertical / 2;
+			float airLayerHeight = columnVector[j].green * voxelDimensionVertical / 2;
+			float overhangHeight = columnVector[j].blue * voxelDimensionVertical / 2;
 			std::vector<Voxel*> rowColumnVoxels;
 
 			Voxel* newBaseVoxel = new Voxel();
@@ -1066,11 +1369,13 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 			rowColumnVoxels.push_back(newAirVoxel);
 			instanceCount++;
 
-			Voxel* newOverhangVoxel = new Voxel();
-			newOverhangVoxel->materialId = 0;
-			newOverhangVoxel->height = overhangHeight;
-			rowColumnVoxels.push_back(newOverhangVoxel);
-			instanceCount++;
+			if (overhangHeight > 0) {
+				ReVoxel* newOverhangVoxel = new ReVoxel();
+				newOverhangVoxel->materialId = 1;
+				newOverhangVoxel->height = overhangHeight;
+				rowColumnVoxels.push_back(newOverhangVoxel);
+				instanceCount++;
+			}
 
 			columnVoxels.push_back(rowColumnVoxels);
 
@@ -1081,6 +1386,8 @@ inline void Terrain::generateTerrainForFinalOutput(FIBITMAP* img) {
 	}
 
 	instancesToRender = instanceCount;
+
+	refineFinalOutputTerrain();
 
 	generateRenderBuffers(rowSize, columnSize);
 }
@@ -1830,6 +2137,12 @@ inline bool Terrain::isCellInRange(float firstBaseHeight, float firstTopHeight, 
 		|| (secondTopHeight > firstTopHeight && secondBaseHeight < firstBaseHeight);
 }
 
+inline bool Terrain::isCellInRangeEqual(float firstBaseHeight, float firstTopHeight, float secondBaseHeight, float secondTopHeight) {
+	return (secondBaseHeight >= firstBaseHeight && secondBaseHeight <= firstTopHeight)
+		|| (secondTopHeight >= firstBaseHeight && secondTopHeight <= firstTopHeight)
+		|| (secondTopHeight >= firstTopHeight && secondBaseHeight <= firstBaseHeight);
+}
+
 inline void Terrain::alertMaterialId(Voxel* voxel) {
 	if(voxel == nullptr){
 		std::cout << "voxel is null";
@@ -2553,7 +2866,7 @@ inline void Terrain::evaporate(RainVoxel* currentRainVoxel, int & currentIndex, 
 inline void Terrain::AppendNormal(std::vector <GLfloat> & a, const glm::vec3 n, const int & i, const int & j, const int & rows, const int & cols, std::vector <int> & weights) {
 	int weightsIndex = (i * cols) + j;
 	//int index = (i * cols * 3) + (j * 3);
-	int index = getIndexForRowColumn(i, j, rows, cols) * 3;
+	int index = getIndexForRowColumn(i, j, rows, cols);
 	glm::vec3 currNormal = glm::vec3(a[index], a[index + 1], a[index + 2]);
 	currNormal = glm::normalize(currNormal + n);
 	//float xAvg = ((a[index] * weights[weightsIndex]) + n.x) / (weights[weightsIndex] + 1);
@@ -2841,9 +3154,58 @@ inline void Terrain::exportOutput(FIBITMAP* img, const char * outputFileName) {
 
 /* Code from Rules TB Surface*/
 inline void Terrain::SaveOBJ(std::vector<char> filename) {
+	if (renderMode == 0) {
+		for (int i = 0; i < matrix_data_solid->size(); i++) {
+			glm::mat4 modelMatrix = (*matrix_data_solid)[i];
+
+			for (int j = 0; j < boxIndices.size() - 2; j += 1) {
+				int point1Index = (boxIndices[j] * 6);
+				float point1X = boxVertices[point1Index];
+				float point1Y = boxVertices[point1Index + 1];
+				float point1Z = boxVertices[point1Index + 2];
+
+				glm::vec4 point1 = glm::vec4(point1X, point1Y, point1Z, 1.0f);
+				glm::vec4 point1Mul = modelMatrix * point1;
+
+				int point2Index = (boxIndices[j + 1] * 6);
+				float point2X = boxVertices[point2Index];
+				float point2Y = boxVertices[point2Index + 1];
+				float point2Z = boxVertices[point2Index + 2];
+
+				glm::vec4 point2 = glm::vec4(point2X, point2Y, point2Z, 1.0f);
+				glm::vec4 point2Mul = modelMatrix * point2;
+
+				int point3Index = (boxIndices[j + 2] * 6);
+				if (point3Index > (boxVertices.size() - 1) || point3Index < 0) {
+					j += 2;
+					continue;
+				}
+
+				float point3X = boxVertices[point3Index];
+				float point3Y = boxVertices[point3Index + 1];
+				float point3Z = boxVertices[point3Index + 2];
+
+				glm::vec4 point3 = glm::vec4(point3X, point3Y, point3Z, 1.0f);
+				glm::vec4 point3Mul = modelMatrix * point3;
+
+				vertices.push_back(point1Mul.x);
+				vertices.push_back(point1Mul.y);
+				vertices.push_back(point1Mul.z);
+
+				vertices.push_back(point2Mul.x);
+				vertices.push_back(point2Mul.y);
+				vertices.push_back(point2Mul.z);
+
+				vertices.push_back(point3Mul.x);
+				vertices.push_back(point3Mul.y);
+				vertices.push_back(point3Mul.z);
+			}
+		}
+	} 
+
 	modelMatrix = glm::mat4(1.0f);
 	modelMatrix = glm::scale(modelMatrix, scale);
-	std::string fileNameNew = std::string(filename.data()) + ".obj";
+	std::string fileNameNew = "outputOBJ.obj";// std::string(filename.data()) + ".obj";
 	//std::vector<char> fileNameNew = std::vector<char>(filename);
 	//fileNameNew.a('.');// , 'o', 'b', 'j');
 	//fileNameNew.push_back('o');

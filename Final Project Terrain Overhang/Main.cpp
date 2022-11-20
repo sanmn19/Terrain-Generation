@@ -26,7 +26,12 @@ const char* const window_title = "Template";
 
 static const std::string vertex_shader("template_vs.glsl");
 static const std::string fragment_shader("template_fs.glsl");
+
+static const std::string vertex_ni_shader("template_ni_vs.glsl");
+static const std::string fragment_ni_shader("template_ni_fs.glsl");
+
 GLuint shader_program = -1;
+GLuint shader_non_instance_program = -1;
 
 //static const std::string texture_name = "HeightMap11.png";
 //static const std::string texture_name = "OutputImage1.png";
@@ -37,7 +42,14 @@ int currentItem = 0;
 
 //static const std::string texture_name = "n39_w110_1arc_v3_0003_0002_c.png";
 //static const std::string texture_name = "n44_w110_1arc_v3_0004_0002_cr.png";
-static const std::string texture_name = "outputImage.png";
+//static const std::string texture_name = "outputImage.png";
+//static const std::string texture_name = "test_12-outputs.png";
+//static const std::string texture_name = "test_4-outputs.png";
+//static const std::string texture_name = "test_4-outputs_refined.png";
+static const std::string texture_name = "test_5-outputs.png";
+//static const std::string texture_name = "test_5-outputs_refined.png";
+//static const std::string texture_name = "test_12-outputs_refined.png";
+//static const std::string texture_name = "test_12-outputs_refined_2.png";
 //static const std::string complex_features_map_name = "n43_w110_1arc_v3_0003_0004_cp.png";
 static const std::string complex_features_map_name = "n38_w106_1arc_v3_0002_0004_crp.png";
 
@@ -51,7 +63,7 @@ float angle = -2.841f;
 float scale[3] = { 1, 1, 1 };
 float aspect = 1.0f;
 float lightDir[3];
-int renderMode = 0;
+int renderMode = 1;
 bool updateErosion = true;
 int steps = 1;
 bool addRain = true;
@@ -67,13 +79,13 @@ char * fileName;
 int selectedRow = 0;
 int selectedColumn = 0;
 
-float x = 109.885;
-float y = 224.059;
-float z = 869.045;
+float x = 138.885;
+float y = 39.059;
+float z = -12.045;
 
-float c1 = 77.113;
-float c2 = 212.085;
-float c3 = 72;
+float c1 = 127.113;
+float c2 = 47.085;
+float c3 = 138;
 
 
 /*
@@ -276,7 +288,8 @@ void draw_gui(GLFWwindow* window)
            }
 
            if (ImGui::Button("Export as OBJ")) {
-                
+               std::vector<char> fileName = { 'o','u','t','p','u','t','O','B','J' };
+               terrain->SaveOBJ(fileName);
            }
        }
    }
@@ -284,9 +297,9 @@ void draw_gui(GLFWwindow* window)
    ImGui::SliderFloat("View angle", &angle, -glm::pi<float>(), +glm::pi<float>());
    //ImGui::SliderFloat("Scale", &scale, 0.01f, +100.0f);
 
-   ImGui::SliderFloat("X", &x, -4000, 4000);
-   ImGui::SliderFloat("Y", &y, -4000, 4000);
-   ImGui::SliderFloat("Z", &z, -4000, 4000);
+   ImGui::SliderFloat("X", &x, -500, 500);
+   ImGui::SliderFloat("Y", &y, -500, 500);
+   ImGui::SliderFloat("Z", &z, -500, 500);
 
    ImGui::SliderFloat("C1", &c1, -256, 256);
    ImGui::SliderFloat("C2", &c2, -256, 256);
@@ -338,15 +351,15 @@ void display(GLFWwindow* window)
 
 
    //Get location for shader uniform variable
-   glm::mat4 PVM = P*V*M;
+   /*glm::mat4 PVM = P * V * M;
    int PVM_loc = glGetUniformLocation(shader_program, "PVM");
-   glUniformMatrix4fv(PVM_loc, 1, false, glm::value_ptr(PVM));
+   glUniformMatrix4fv(PVM_loc, 1, false, glm::value_ptr(PVM));*/
 
    if (terrain != nullptr) {
        terrain->setAngle(angle);
        terrain->setDrawMode(drawMode);
-       terrain->setIndexCountToRender(indexCount);
-       terrain->render(V, P, shader_program, lightDir);
+       //terrain->setIndexCountToRender(indexCount);
+       terrain->render(V, P, shader_program, shader_non_instance_program, lightDir);
        terrain->setScale(glm::vec3(scale[0], scale[1], scale[2]));
    }
 
@@ -368,11 +381,11 @@ void display(GLFWwindow* window)
 
 void idle()
 {
-   float time_sec = static_cast<float>(glfwGetTime());
+   /*float time_sec = static_cast<float>(glfwGetTime());
 
    //Pass time_sec value to the shaders
    int time_loc = glGetUniformLocation(shader_program, "time");
-   glUniform1f(time_loc, time_sec);
+   glUniform1f(time_loc, time_sec);*/
 }
 
 void reload_shader()
@@ -393,6 +406,24 @@ void reload_shader()
          glDeleteProgram(shader_program);
       }
       shader_program = new_shader;
+   }
+
+   GLuint new_ni_shader = InitShader(vertex_ni_shader.c_str(), fragment_ni_shader.c_str());
+
+   if (new_ni_shader == -1) // loading failed
+   {
+       glClearColor(1.0f, 0.0f, 1.0f, 0.0f); //change clear color if shader can't be compiled
+   }
+   else
+   {
+       //glClearColor(0.35f, 0.35f, 0.35f, 0.0f);
+       glClearColor(1.0f, 0.35f, 0.35f, 0.0f);
+
+       if (shader_non_instance_program != -1)
+       {
+           glDeleteProgram(shader_non_instance_program);
+       }
+       shader_non_instance_program = new_ni_shader;
    }
 }
 
@@ -458,7 +489,7 @@ void initOpenGL()
 
 //All file names with extension
 void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, std::string outputImagePath) {
-    terrain = new Terrain(0, glm::vec3(0.0f, 0.0f, 0.0f), inputHeightMap, complexFeatureMap, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, 0);
+    terrain = new Terrain(0, glm::vec3(0.0f, 0.0f, 0.0f), inputHeightMap, complexFeatureMap, glm::vec3(scale[0], scale[1], scale[2]), 1.0f, 1);
     terrain->generateTerrain();
     instanceToRender = terrain->instancesToRender;
 
@@ -495,16 +526,16 @@ void processTerrain(std::string inputHeightMap, std::string complexFeatureMap, s
 //terrain heightmap, complex feature image path, output image name/path
 int main(int argc, char **argv)
 {
-    std::vector<std::string> fileNameArguments;/* =
+    std::vector<std::string> fileNameArguments =
     {
     "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Heightmaps2\\HeightMap2.png",
     "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Complex Images\\n37_w110_1arc_v3_0001_0001_rp.png",
     "D:\\Purdue\\Research\\CGT 521 Fall 2022\\Terrain-Generation\\Data Set\\Output Images"
-    };*/
+    };
 
     if (argc != 4) {
         std::cout << "Please provide 3 arguments" << std::endl;
-        return 0;
+        //return 0;
     }
     else {
         for (int i = 1; i < argc; i++) {
@@ -549,10 +580,10 @@ int main(int argc, char **argv)
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 400");
 
-    processTerrain(fileNameArguments[0], fileNameArguments[1], fileNameArguments[2]);
+    //processTerrain(fileNameArguments[0], fileNameArguments[1], fileNameArguments[2]);
     /* Loop until the user closes the window */
 
-    /*
+    
     if (terrain != nullptr) {
         returnList = terrain->getVoxelMapCell(selectedRow, selectedColumn);
     }
@@ -564,7 +595,7 @@ int main(int argc, char **argv)
 
         glfwPollEvents();
     }
-    */
+    
 
     // Cleanup ImGui
     ImGui_ImplOpenGL3_Shutdown();
