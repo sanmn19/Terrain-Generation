@@ -79,6 +79,8 @@ char * fileName;
 int selectedRow = 0;
 int selectedColumn = 0;
 
+/*
+//fOR vOXEL
 float x = 138.885;
 float y = 39.059;
 float z = -12.045;
@@ -86,7 +88,16 @@ float z = -12.045;
 float c1 = 127.113;
 float c2 = 47.085;
 float c3 = 138;
+*/
 
+//For Mesh
+float x = -32;
+float y = 69;
+float z = 171;
+
+float c1 = -133;
+float c2 = 62;
+float c3 = -15;
 
 /*
 float x = 1.031;

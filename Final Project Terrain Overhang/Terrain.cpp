@@ -878,6 +878,55 @@ inline std::vector<GLuint> Terrain::createModelMatrixBuffers(int rowSize, int co
 	return model_matrix_buffers;
 }
 
+/*
+generating mesh vertices for multiple layers
+
+Forget indexing since that's too complicated. Just generate triangles.
+
+Create a new data structure(Should I?)
+
+At each cell in the terrain,
+
+0. Consider neighbours(Generic to both cases)
+		a. i - 1, j - 1 & i, j - 1
+		b. i - 1, j & i - 1, j - 1
+		c. i - 1, j & i - 1, j + 1
+		d. i, j - 1 & i + 1, j - 1
+		e. i + 1, j - 1 & i + 1, j
+		f. i + 1, j & i + 1, j + 1
+		h. i + 1, j + 1 & i, j + 1
+
+1. If no overhang voxel,
+
+	i. If no 
+
+2. If overhang voxel,
+
+	i. For each neighbour,
+		If neighbour is taller than the top of the current air voxel, 
+			If neighbour has air voxel
+				if air voxel isInRange(use the function already defined)
+					Get those 2 points of neighbour
+				else
+					do the same thing as below for single point(in the else condition)
+			else
+				If neighbour already has an intermediate point
+					if the intermediate point is below the top of the current air voxel and above the current air voxel
+						then use the existing single point
+					else
+						create a new vertex at height as average of the current air voxel center(top + bottom / 2)
+				else
+					then insert one vertex in the neighbour voxel's data structure.
+			
+			
+		If neighbour is not taller than the top of the current air voxel
+			Get the lower point only of the neighbour with upper point as invalid point(need to have a boolean or indicate this somehow)
+
+		Since, we do this for pair of neighbour at a time, we must construct triangles between the 3 cells.
+
+For each cell, if neighbour is tall enough
+*/
+
 inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 	if (renderMode == 0) {	//Voxel
 		glBindVertexArray(vertexArrayObject);
@@ -947,9 +996,6 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 		for (int i = 0; i < rowSize - 1; i = i + 1) {
 			for (int j = 0; j < columnSize; j = j + 1) {
 				
-				float normalizedJ = j / columnSizeFloat;
-				float normalizedI = i / rowSizeFloat;
-
 				//std::cout << "i j " << i << " " << j << std::endl;
 				if (i != rowSize - 1) {
 					indexArray.push_back(idx);
@@ -961,7 +1007,7 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 
 				std::vector<Voxel*>& currentStack = voxelMap[i][j];
 				
-				float pixelValue00 = determineBaseHeight(currentStack, currentStack.size());
+				float pixelValue00 = determineBaseHeight(currentStack, 1);
 				glm::vec3 pixel00VertexPosition = glm::vec3(i, pixelValue00, j);
 				AddVertex(&vertices, pixel00VertexPosition);
 
@@ -970,11 +1016,11 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 					std::vector<Voxel*>& nextColumnStack = voxelMap[i][j + 1];
 					std::vector<Voxel*>& nextRowNextColumnStack = voxelMap[i + 1][j + 1];
 
-					float pixelValue01 = determineBaseHeight(nextColumnStack, nextColumnStack.size());
+					float pixelValue01 = determineBaseHeight(nextColumnStack, 1);
 
-					float pixelValue10 = determineBaseHeight(nextRowStack, nextRowStack.size());
+					float pixelValue10 = determineBaseHeight(nextRowStack, 1);
 
-					//float pixelValue11 = determineBaseHeight(nextRowNextColumnStack, nextRowNextColumnStack.size()) / 255.0f;
+					//float pixelValue11 = determineBaseHeight(nextRowNextColumnStack, 1) / 255.0f;
 
 					//float pixelValue11 = columnVectorNext[j + 1].red;
 					/*std::cout << "Pixel Value is  00 " << pixelValue00 << " 01 " << pixelValue01 << " 10 "
@@ -983,9 +1029,6 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 						<< std::endl;*/
 
 						//Generate vertices for these 4 pixels and connect them by triangles.
-					float normalizedJPlusOne = (j + 1) / columnSizeFloat;
-					float normalizedIPlusOne = (i + 1) / rowSizeFloat;
-
 					glm::vec3 pixel01VertexPosition = glm::vec3(i, pixelValue01, j + 1);
 					glm::vec3 pixel10VertexPosition = glm::vec3(i + 1, pixelValue10, j);
 					//glm::vec3 pixel11VertexPosition = glm::vec3(normalizedIPlusOne, pixelValue11, normalizedJPlusOne);
@@ -1007,8 +1050,6 @@ inline void Terrain::generateRenderBuffers(int rowSize, int columnSize) {
 					//AddVertex(&normals, normal);
 
 					if (j != 0) {
-						float normalizedJMinusOne = (j - 1) / columnSizeFloat;
-
 						std::vector<Voxel*>& nextRowLastColumnStack = voxelMap[i + 1][j - 1];
 						float pixelValue1Minus1 = determineBaseHeight(nextRowLastColumnStack, nextRowLastColumnStack.size());
 						glm::vec3 pixel1Minus1VertexPosition = glm::vec3(i + 1, pixelValue1Minus1, j - 1);
